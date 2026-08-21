@@ -129,7 +129,7 @@ function StatTile({
   );
 }
 
-function DeliveryCard({ project }: { project: Project }) {
+function DeliveryCard({ project, index }: { project: Project; index: number }) {
   const meta = STATUS_META[project.status];
   const bulletCount = linesOf(project.deliveries).length;
   const hasRisk = project.risks.trim().length > 0;
@@ -140,7 +140,15 @@ function DeliveryCard({ project }: { project: Project }) {
       style={{ border: `1px solid ${LINE}`, borderTop: `3px solid ${meta.color}` }}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="text-sm font-bold leading-snug text-slate-900">{project.name || 'Projeto sem nome'}</p>
+        <div className="flex items-start gap-2 min-w-0">
+          <span
+            className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5"
+            style={{ backgroundColor: SECTION_COLOR }}
+          >
+            {index + 1}
+          </span>
+          <p className="text-sm font-bold leading-snug text-slate-900">{project.name || 'Projeto sem nome'}</p>
+        </div>
         <StatusBadge status={project.status} />
       </div>
       {bulletCount > 0 && (
@@ -287,8 +295,8 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report }, ref) => {
         <section>
           <SectionTitle n={2}>Entregas da semana</SectionTitle>
           <div className={`grid gap-4 ${gridColsFor(report.projects.length)}`}>
-            {report.projects.map((p) => (
-              <DeliveryCard key={p.id} project={p} />
+            {report.projects.map((p, i) => (
+              <DeliveryCard key={p.id} project={p} index={i} />
             ))}
           </div>
         </section>
