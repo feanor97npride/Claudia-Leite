@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: "Inter", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  background-color: #f1f5f9;
+}
+
+/* One-pager print target: fits an A4 page in portrait */
+.snapshot-page {
+  width: 210mm;
+  max-width: 210mm;
+  box-sizing: border-box;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 8mm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .snapshot-page, .snapshot-page * {
+    visibility: visible;
+  }
+
+  .snapshot-page {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    box-shadow: none !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 9999px;
+}
