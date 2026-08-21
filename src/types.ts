@@ -40,8 +40,11 @@ export interface UserProfile {
   responsible: string;
 }
 
-export const STATUS_META: Record<ProjectStatus, { label: string; color: string; dot: string }> = {
-  on_track: { label: 'No prazo', color: '#15803d', dot: 'bg-emerald-500' },
-  attention: { label: 'Atenção', color: '#b45309', dot: 'bg-amber-500' },
-  delayed: { label: 'Atrasado', color: '#b91c1c', dot: 'bg-red-500' },
+export const STATUS_META: Record<
+  ProjectStatus,
+  { label: string; color: string; dot: string; icon: 'check' | 'alert' | 'clock' }
+> = {
+  on_track: { label: 'No prazo', color: '#15803d', dot: 'bg-emerald-500', icon: 'check' },
+  attention: { label: 'Atenção', color: '#b45309', dot: 'bg-amber-500', icon: 'alert' },
+  delayed: { label: 'Atrasado', color: '#b91c1c', dot: 'bg-red-500', icon: 'clock' },
 };
