@@ -7,11 +7,25 @@ interface Props {
   onChange: (project: Project) => void;
   onRemove: () => void;
   canRemove: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
 }
 
 const STATUS_OPTIONS: ProjectStatus[] = ['on_track', 'attention', 'delayed'];
 
-export default function ProjectCard({ project, index, onChange, onRemove, canRemove }: Props) {
+export default function ProjectCard({
+  project,
+  index,
+  onChange,
+  onRemove,
+  canRemove,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
+}: Props) {
   function set<K extends keyof Project>(key: K, value: Project[K]) {
     onChange({ ...project, [key]: value });
   }
@@ -19,7 +33,27 @@ export default function ProjectCard({ project, index, onChange, onRemove, canRem
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
       <div className="flex items-start gap-3">
-        <span className="mt-2 text-xs font-semibold text-slate-400 w-5 shrink-0">{index + 1}.</span>
+        <div className="flex flex-col items-center gap-0.5 shrink-0 mt-1">
+          <button
+            type="button"
+            onClick={onMoveUp}
+            disabled={!canMoveUp}
+            title="Mover para cima"
+            className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-25 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors leading-none"
+          >
+            ▲
+          </button>
+          <span className="text-xs font-semibold text-slate-400">{index + 1}</span>
+          <button
+            type="button"
+            onClick={onMoveDown}
+            disabled={!canMoveDown}
+            title="Mover para baixo"
+            className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-25 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors leading-none"
+          >
+            ▼
+          </button>
+        </div>
         <div className="flex-1 space-y-3">
           <div className="flex gap-2">
             <input

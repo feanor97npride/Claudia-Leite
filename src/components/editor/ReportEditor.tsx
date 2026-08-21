@@ -32,6 +32,14 @@ export default function ReportEditor({ report, onChange }: Props) {
     set('projects', report.projects.filter((_, i) => i !== index));
   }
 
+  function moveProject(index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= report.projects.length) return;
+    const projects = [...report.projects];
+    [projects[index], projects[target]] = [projects[target], projects[index]];
+    set('projects', projects);
+  }
+
   return (
     <div className="space-y-5 pb-24">
       <section className="rounded-xl border border-slate-200 bg-white p-4">
@@ -104,6 +112,10 @@ export default function ReportEditor({ report, onChange }: Props) {
               onChange={(p) => updateProject(i, p)}
               onRemove={() => removeProject(i)}
               canRemove={report.projects.length > 1}
+              onMoveUp={() => moveProject(i, -1)}
+              onMoveDown={() => moveProject(i, 1)}
+              canMoveUp={i > 0}
+              canMoveDown={i < report.projects.length - 1}
             />
           ))}
         </div>
