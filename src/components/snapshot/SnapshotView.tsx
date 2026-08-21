@@ -28,14 +28,24 @@ interface Props {
 // never get squeezed down to unreadable sizes on longer reports.
 const FRAME_W = 1280;
 
+// Palette lifted from the corporate reference template.
+const NAVY_900 = '#0d1b3e';
+const NAVY_800 = '#132250';
+const BLUE_ACCENT = '#3b6fd6';
+const LINE = '#e4e8f2';
+const PAGE_BG = '#f3f5fa';
+const INK_600 = '#54607a';
+const INK_400 = '#8a93ab';
+const PURPLE = '#6d4fd6';
+
 // Section number badges (1-5) always use this single neutral color — the
 // status palette (green/amber/red) is reserved exclusively for semaphore
 // status, never for decoration.
-const SECTION_COLOR = '#1e293b';
+const SECTION_COLOR = NAVY_900;
 
-// Decorative accents for non-status elements (indicator icons, next-step
-// numbering). Deliberately excludes green/amber/red so it never gets
-// confused with the on-track/attention/delayed semaphore.
+// Decorative accents for custom indicator tiles beyond the fixed three.
+// Deliberately excludes green/amber/red so it never gets confused with the
+// on-track/attention/delayed semaphore.
 const DECOR = ['#0ea5b7', '#7c3aed', '#2563eb', '#0284c7', '#6366f1'];
 
 const INDICATOR_ICONS = [IconGauge, IconTrendingUp, IconUsers, IconTarget, IconFlag];
@@ -51,13 +61,18 @@ function normalizeCase(line: string): string {
   return line.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 }
 
-function renderLines(text: string) {
+function renderLines(text: string, twoCol = false) {
   const lines = linesOf(text);
   if (lines.length === 0) return <p className="text-slate-400 italic">—</p>;
   return (
-    <ul className="space-y-0.5 list-disc list-inside marker:text-current">
+    <ul
+      className="space-y-1 list-disc list-inside marker:text-current"
+      style={twoCol ? { columnCount: 2, columnGap: 32 } : undefined}
+    >
       {lines.map((line, i) => (
-        <li key={i}>{normalizeCase(line)}</li>
+        <li key={i} style={{ breakInside: 'avoid' }}>
+          {normalizeCase(line)}
+        </li>
       ))}
     </ul>
   );
@@ -71,14 +86,14 @@ function gridColsFor(n: number, max = 4): string {
 
 function SectionTitle({ n, children }: { n: number; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-2 mb-1.5">
+    <div className="flex items-center gap-2.5 mb-4">
       <span
-        className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+        className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
         style={{ backgroundColor: SECTION_COLOR }}
       >
         {n}
       </span>
-      <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-slate-800">{children}</h2>
+      <h2 className="text-[15px] font-extrabold tracking-wide text-slate-900">{children}</h2>
     </div>
   );
 }
@@ -86,101 +101,68 @@ function SectionTitle({ n, children }: { n: number; children: ReactNode }) {
 function StatTile({
   icon: Icon,
   color,
+  tint,
   value,
   label,
 }: {
   icon: (props: { className?: string; style?: CSSProperties }) => ReactElement;
   color: string;
+  tint: string;
   value: string | number;
   label: string;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2 flex items-center gap-2 min-w-[108px]">
-      <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${color}1A` }}>
-        <Icon className="w-3.5 h-3.5" style={{ color }} />
+    <div
+      className="rounded-xl bg-white px-5 py-3.5 flex items-center gap-3 min-w-[150px]"
+      style={{ border: `1px solid ${LINE}` }}
+    >
+      <div className="w-[34px] h-[34px] rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: tint }}>
+        <Icon className="w-4 h-4" style={{ color }} />
       </div>
-      <div className="min-w-0">
-        <p className="text-sm font-black leading-none" style={{ color }}>
-          {value}
+      <div>
+        <p className="text-xl font-extrabold leading-none">{value}</p>
+        <p className="text-xs mt-0.5" style={{ color: INK_600 }}>
+          {label}
         </p>
-        <p className="text-[8.5px] text-slate-500 leading-tight whitespace-nowrap">{label}</p>
       </div>
     </div>
   );
 }
 
-const NOT_STARTED_COLOR = '#cbd5e1';
-const RAIL_IDLE_COLOR = '#e2e8f0';
+function DeliveryCard({ project }: { project: Project }) {
+  const meta = STATUS_META[project.status];
+  const bulletCount = linesOf(project.deliveries).length;
+  const hasRisk = project.risks.trim().length > 0;
 
-/** A node counts as "walked past" on the rail once its delivery is fully done. */
-function isNodeComplete(project: Project): boolean {
-  return project.percent >= 100;
-}
-
-function DeliveryTimeline({ projects }: { projects: Project[] }) {
   return (
-    <div className="flex flex-col">
-      {projects.map((project, i) => {
-        const started = project.percent > 0;
-        const meta = STATUS_META[project.status];
-        const nodeColor = started ? meta.color : NOT_STARTED_COLOR;
-        const isComplete = isNodeComplete(project);
-        const isFirst = i === 0;
-        const isLast = i === projects.length - 1;
-        const segmentColor = isNodeComplete(project) ? meta.color : RAIL_IDLE_COLOR;
-        const bulletCount = linesOf(project.deliveries).length;
-
-        return (
-          <div key={project.id} className="flex gap-3">
-            {/* Rail column: a plain dot marker (status already reads from the badge below) */}
-            <div className="flex flex-col items-center w-3 shrink-0">
-              <div className="w-0.5 flex-1" style={{ backgroundColor: isFirst ? 'transparent' : segmentColorAbove(projects, i) }} />
-              <div className="w-3 h-3 rounded-full shrink-0 ring-2 ring-white" style={{ backgroundColor: nodeColor }} />
-              <div className="w-0.5 flex-1" style={{ backgroundColor: isLast ? 'transparent' : segmentColor }} />
-            </div>
-
-            {/* Content column */}
-            <div
-              className={`flex-1 min-w-0 rounded-lg bg-slate-50 border border-slate-200 border-l-4 p-2.5 ${isLast ? 'mb-0' : 'mb-2'}`}
-              style={{ borderLeftColor: nodeColor }}
-            >
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-[11px] font-bold text-slate-900">{project.name || 'Projeto sem nome'}</p>
-                <StatusBadge status={project.status} />
-              </div>
-              {!isComplete && (
-                <div className="flex items-center gap-1.5 mt-1 max-w-xs">
-                  <div className="h-1 flex-1 rounded-full bg-slate-200 overflow-hidden">
-                    <div className="h-full" style={{ width: `${project.percent}%`, backgroundColor: meta.color }} />
-                  </div>
-                  <span className="text-[8.5px] font-semibold text-slate-400 shrink-0">{project.percent}%</span>
-                </div>
-              )}
-              {bulletCount > 0 && (
-                <p className="text-[8.5px] text-slate-400 font-medium mt-1">
-                  {bulletCount} de {bulletCount} itens concluídos
-                </p>
-              )}
-              <div className="text-[10px] text-slate-600 leading-snug mt-1">{renderLines(project.deliveries)}</div>
-              <div className="mt-1.5 pt-1.5 border-t border-slate-200">
-                {project.risks.trim() ? (
-                  <p className="text-[8.5px] text-red-600 font-medium">⚠ {normalizeCase(project.risks.trim())}</p>
-                ) : (
-                  <p className="text-[8.5px] text-slate-400 font-medium">Sem bloqueios identificados</p>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })}
+    <div
+      className="rounded-2xl bg-white p-4 flex flex-col gap-2.5"
+      style={{ border: `1px solid ${LINE}`, borderTop: `3px solid ${meta.color}` }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-bold leading-snug text-slate-900">{project.name || 'Projeto sem nome'}</p>
+        <StatusBadge status={project.status} />
+      </div>
+      {bulletCount > 0 && (
+        <p className="text-[11px] font-semibold" style={{ color: INK_400 }}>
+          {bulletCount} de {bulletCount} itens concluídos
+        </p>
+      )}
+      <div className="text-[12.5px] leading-snug flex-1" style={{ color: INK_600 }}>
+        {renderLines(project.deliveries)}
+      </div>
+      <div
+        className="text-[11px] pt-2"
+        style={{
+          borderTop: `1px dashed ${LINE}`,
+          color: hasRisk ? STATUS_META.delayed.color : INK_400,
+          fontWeight: hasRisk ? 600 : 400,
+        }}
+      >
+        {hasRisk ? `⚠ ${normalizeCase(project.risks.trim())}` : 'Sem bloqueios identificados'}
+      </div>
     </div>
   );
-}
-
-/** The segment above node i must match the segment below node i-1 so the two halves read as one line. */
-function segmentColorAbove(projects: Project[], i: number): string {
-  const prev = projects[i - 1];
-  return isNodeComplete(prev) ? STATUS_META[prev.status].color : RAIL_IDLE_COLOR;
 }
 
 const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report }, ref) => {
@@ -198,7 +180,6 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report }, ref) => {
   const advances = report.projects
     .filter((p) => p.nextWeekAdvances.trim())
     .flatMap((p) => linesOf(p.nextWeekAdvances).map((line) => ({ project: p.name || 'Projeto', line })));
-  const advanceCols = gridColsFor(advances.length, 3);
 
   const nextSteps = report.projects
     .filter((p) => p.nextSteps.trim())
@@ -208,155 +189,214 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report }, ref) => {
   const attentionLines = linesOf(report.attentionPoints);
   const insightCount = (highlightLines.length > 0 ? 1 : 0) + (attentionLines.length > 0 ? 1 : 0);
 
+  const visibleIndicators = report.indicators.filter((ind) => ind.label.trim() || ind.value.trim());
+
   return (
     <div
       ref={ref}
-      className="snapshot-frame bg-white mx-auto shadow-xl border border-slate-200 text-slate-800 overflow-hidden rounded-2xl"
-      style={{ width: FRAME_W, fontSize: '12px' }}
+      className="snapshot-frame rounded-2xl shadow-sm overflow-hidden text-slate-900"
+      style={{ width: FRAME_W, backgroundColor: PAGE_BG, border: `1px solid ${LINE}`, fontSize: '12px' }}
     >
+      <div className="p-7 space-y-7">
         {/* Header */}
-        <div className="bg-gradient-to-r from-[#0a1330] via-[#101f4d] to-[#16305c] text-white px-6 py-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-2.5">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-400 to-indigo-500 flex items-center justify-center shadow-lg shrink-0">
-                <IconLayers className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-[8.5px] font-bold tracking-[0.2em] text-sky-300 uppercase mb-0.5">Status Report Semanal</p>
-                <h1 className="text-lg font-black uppercase tracking-tight leading-none">{report.area || 'Sistemas (TI)'}</h1>
-                {report.execSummary.trim() && (
-                  <p className="text-[10px] text-slate-300 mt-1.5 max-w-lg leading-snug">{report.execSummary}</p>
-                )}
-              </div>
+        <div
+          className="rounded-2xl px-8 py-6 flex items-start justify-between gap-6 text-white"
+          style={{ background: `linear-gradient(135deg, ${NAVY_900}, ${NAVY_800})` }}
+        >
+          <div className="flex items-start gap-4">
+            <div
+              className="w-[46px] h-[46px] rounded-xl flex items-center justify-center shrink-0 shadow-lg"
+              style={{ background: `linear-gradient(135deg, ${BLUE_ACCENT}, #5b8ff0)` }}
+            >
+              <IconLayers className="w-6 h-6 text-white" />
             </div>
-            <div className="flex gap-1.5 shrink-0">
-              <div className="rounded-lg bg-white/10 px-2.5 py-1.5 text-right min-w-[100px]">
-                <p className="flex items-center gap-1 justify-end text-[7.5px] uppercase tracking-wider text-sky-300 font-bold">
-                  <IconCalendar className="w-2.5 h-2.5" />
-                  Período
+            <div>
+              <p className="text-[11px] font-bold tracking-[0.12em] uppercase mb-1" style={{ color: '#9db4e8' }}>
+                Status Report Semanal
+              </p>
+              <h1 className="text-2xl font-extrabold tracking-tight leading-none mb-2">
+                {report.area || 'Sistemas (TI)'}
+              </h1>
+              {report.execSummary.trim() && (
+                <p className="text-[13.5px] leading-relaxed max-w-xl" style={{ color: '#c3cde8' }}>
+                  {report.execSummary}
                 </p>
-                <p className="text-[10.5px] font-bold mt-0.5 leading-tight">{report.periodLabel}</p>
-              </div>
-              <div className="rounded-lg bg-white/10 px-2.5 py-1.5 text-right min-w-[100px]">
-                <p className="text-[7.5px] uppercase tracking-wider text-sky-300 font-bold">Responsável</p>
-                <p className="text-[10.5px] font-bold mt-0.5 leading-tight">{report.responsible || '—'}</p>
-              </div>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-3 shrink-0">
+            <div
+              className="rounded-lg px-4 py-2.5 min-w-[150px]"
+              style={{ background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.14)' }}
+            >
+              <p
+                className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold mb-1"
+                style={{ color: '#9db4e8' }}
+              >
+                <IconCalendar className="w-3 h-3" />
+                Período
+              </p>
+              <p className="text-sm font-bold leading-tight">{report.periodLabel}</p>
+            </div>
+            <div
+              className="rounded-lg px-4 py-2.5 min-w-[150px]"
+              style={{ background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.14)' }}
+            >
+              <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: '#9db4e8' }}>
+                Responsável
+              </p>
+              <p className="text-sm font-bold leading-tight">{report.responsible || '—'}</p>
             </div>
           </div>
         </div>
 
-        <div className="px-6 py-3.5 space-y-3.5">
-          {/* 1. Panorama */}
+        {/* 1. Panorama */}
+        <section>
+          <SectionTitle n={1}>Panorama da semana</SectionTitle>
+          <div className="flex flex-wrap gap-4">
+            <StatTile
+              icon={IconCheck}
+              color={STATUS_META.on_track.color}
+              tint="#e9f7ee"
+              value={statusCounts.on_track}
+              label="No prazo"
+            />
+            <StatTile
+              icon={IconAlert}
+              color={STATUS_META.attention.color}
+              tint="#fef3e6"
+              value={statusCounts.attention}
+              label="Atenção"
+            />
+            <StatTile
+              icon={IconClock}
+              color={STATUS_META.delayed.color}
+              tint="#fdeaea"
+              value={statusCounts.delayed}
+              label="Atrasados"
+            />
+            {visibleIndicators.map((ind, i) => {
+              const Icon = INDICATOR_ICONS[i % INDICATOR_ICONS.length];
+              const color = DECOR[(i + 1) % DECOR.length];
+              return <StatTile key={ind.id} icon={Icon} color={color} tint={`${color}1A`} value={ind.value} label={ind.label} />;
+            })}
+          </div>
+        </section>
+
+        {/* 2. Entregas - foco principal */}
+        <section>
+          <SectionTitle n={2}>Entregas da semana</SectionTitle>
+          <div className={`grid gap-4 ${gridColsFor(report.projects.length)}`}>
+            {report.projects.map((p) => (
+              <DeliveryCard key={p.id} project={p} />
+            ))}
+          </div>
+        </section>
+
+        {/* 3. Avanços - um card por avanço */}
+        <section>
+          <SectionTitle n={3}>Avanços antecipados para a próxima semana</SectionTitle>
+          {advances.length === 0 ? (
+            <p className="text-slate-400 italic text-[11px]">Nenhum avanço antecipado registrado.</p>
+          ) : (
+            <div className="space-y-2.5">
+              {advances.map((a, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl flex items-start gap-2.5 px-5 py-3.5 text-sm"
+                  style={{ background: '#eef4ff', border: '1px solid #cddcf9' }}
+                >
+                  <IconArrowRight className="w-4 h-4 shrink-0 mt-0.5" style={{ color: BLUE_ACCENT }} />
+                  <p>
+                    <span className="font-bold" style={{ color: NAVY_800 }}>
+                      {a.project}:
+                    </span>{' '}
+                    {normalizeCase(a.line)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* 4. Insights */}
+        {insightCount > 0 && (
           <section>
-            <SectionTitle n={1}>Panorama da semana</SectionTitle>
-            <div className="flex flex-wrap gap-1.5">
-              <StatTile icon={IconCheck} color={STATUS_META.on_track.color} value={statusCounts.on_track} label="No prazo" />
-              <StatTile icon={IconAlert} color={STATUS_META.attention.color} value={statusCounts.attention} label="Atenção" />
-              <StatTile icon={IconClock} color={STATUS_META.delayed.color} value={statusCounts.delayed} label="Atrasados" />
-              {report.indicators
-                .filter((ind) => ind.label.trim() || ind.value.trim())
-                .map((ind, i) => {
-                  const Icon = INDICATOR_ICONS[i % INDICATOR_ICONS.length];
-                  const color = DECOR[(i + 1) % DECOR.length];
-                  return <StatTile key={ind.id} icon={Icon} color={color} value={ind.value} label={ind.label} />;
-                })}
+            <SectionTitle n={4}>Insights da semana</SectionTitle>
+            <div className={`grid gap-4 ${insightCount === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              {highlightLines.length > 0 && (
+                <div className="rounded-xl p-5" style={{ background: '#e9f7ee', border: '1px solid #bfe6cd' }}>
+                  <p
+                    className="text-[11px] font-extrabold uppercase tracking-widest mb-2.5 flex items-center gap-1.5"
+                    style={{ color: '#137a3c' }}
+                  >
+                    <IconSpark className="w-3.5 h-3.5" /> Destaques
+                  </p>
+                  <div className="text-[13px] leading-snug" style={{ color: '#1c3a28' }}>
+                    {renderLines(report.highlights, highlightLines.length > 3)}
+                  </div>
+                </div>
+              )}
+              {attentionLines.length > 0 && (
+                <div className="rounded-xl p-5" style={{ background: '#fef3e6', border: '1px solid #f4d9ab' }}>
+                  <p
+                    className="text-[11px] font-extrabold uppercase tracking-widest mb-2.5 flex items-center gap-1.5"
+                    style={{ color: '#92400e' }}
+                  >
+                    <IconAlert className="w-3.5 h-3.5" /> Pontos de atenção
+                  </p>
+                  <div className="text-[13px] leading-snug" style={{ color: '#78350f' }}>
+                    {renderLines(report.attentionPoints, attentionLines.length > 3)}
+                  </div>
+                </div>
+              )}
             </div>
           </section>
+        )}
 
-          {/* 2. Entregas - foco principal, em formato de timeline */}
+        {/* 5. Próximos passos */}
+        {nextSteps.length > 0 && (
           <section>
-            <SectionTitle n={2}>Entregas da semana</SectionTitle>
-            <DeliveryTimeline projects={report.projects} />
-          </section>
-
-          {/* 3. Avanços - também em destaque, um card por avanço */}
-          <section>
-            <SectionTitle n={3}>Avanços antecipados para a próxima semana</SectionTitle>
-            {advances.length === 0 ? (
-              <p className="text-slate-400 italic text-[10px]">Nenhum avanço antecipado registrado.</p>
+            <SectionTitle n={5}>Próximos passos</SectionTitle>
+            {nextSteps.length === 1 ? (
+              <div
+                className="rounded-xl bg-white p-3.5 flex items-center gap-2.5 w-fit"
+                style={{ border: `1px solid ${LINE}` }}
+              >
+                <IconArrowRight className="w-3.5 h-3.5 shrink-0" style={{ color: INK_400 }} />
+                <p className="text-[12.5px] leading-snug">
+                  <span className="font-bold">{nextSteps[0].project}:</span> {normalizeCase(nextSteps[0].line)}
+                </p>
+              </div>
             ) : (
-              <div className={`grid gap-2 ${advanceCols}`}>
-                {advances.map((a, i) => (
+              <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+                {nextSteps.map((s, i) => (
                   <div
                     key={i}
-                    className="rounded-xl border-2 border-sky-300 bg-gradient-to-br from-sky-50 to-white p-2.5 flex items-start gap-1.5"
+                    className="rounded-xl bg-white p-3.5 flex gap-3 items-start"
+                    style={{ border: `1px solid ${LINE}` }}
                   >
-                    <IconArrowRight className="w-3 h-3 text-sky-500 shrink-0 mt-0.5" />
-                    <span className="text-[10px] text-sky-900">
-                      <span className="font-semibold">{a.project}: </span>
-                      {normalizeCase(a.line)}
+                    <span
+                      className="w-[26px] h-[26px] rounded-lg flex items-center justify-center text-white text-[11px] font-extrabold shrink-0"
+                      style={{ backgroundColor: PURPLE }}
+                    >
+                      {String(i + 1).padStart(2, '0')}
                     </span>
+                    <p className="text-[12.5px] leading-snug">
+                      <span className="font-bold">{s.project}:</span> {normalizeCase(s.line)}
+                    </p>
                   </div>
                 ))}
               </div>
             )}
           </section>
+        )}
 
-          {/* 4. Insights */}
-          {insightCount > 0 && (
-            <section>
-              <SectionTitle n={4}>Insights da semana</SectionTitle>
-              <div className={`grid gap-2 ${insightCount === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                {highlightLines.length > 0 && (
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-2.5">
-                    <p className="flex items-center gap-1 text-[9.5px] font-bold text-emerald-800 uppercase tracking-wide mb-1">
-                      <IconSpark className="w-3 h-3" /> Destaques
-                    </p>
-                    <div className="text-[10px] text-emerald-900 leading-snug">{renderLines(report.highlights)}</div>
-                  </div>
-                )}
-                {attentionLines.length > 0 && (
-                  <div className="rounded-xl border border-amber-300 bg-amber-50/80 p-2.5">
-                    <p className="flex items-center gap-1 text-[9.5px] font-bold text-amber-800 uppercase tracking-wide mb-1">
-                      <IconAlert className="w-3 h-3" /> Pontos de atenção
-                    </p>
-                    <div className="text-[10px] text-amber-900 leading-snug">{renderLines(report.attentionPoints)}</div>
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
-
-          {/* 5. Próximos passos */}
-          {nextSteps.length > 0 && (
-            <section>
-              <SectionTitle n={5}>Próximos passos</SectionTitle>
-              {nextSteps.length === 1 ? (
-                <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 w-fit">
-                  <IconArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
-                  <span className="text-[9.5px] text-slate-700 leading-tight">
-                    <span className="font-semibold text-slate-500">{nextSteps[0].project}: </span>
-                    {normalizeCase(nextSteps[0].line)}
-                  </span>
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-x-1 gap-y-2">
-                  {nextSteps.map((s, i) => (
-                    <div key={i} className="flex items-center">
-                      <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 pl-1 pr-2.5 py-1">
-                        <span
-                          className="w-[18px] h-[18px] rounded-full flex items-center justify-center text-[8.5px] font-bold text-white shrink-0"
-                          style={{ backgroundColor: DECOR[i % DECOR.length] }}
-                        >
-                          {String(i + 1).padStart(2, '0')}
-                        </span>
-                        <span className="text-[9.5px] text-slate-700 leading-tight">
-                          <span className="font-semibold text-slate-500">{s.project}: </span>
-                          {normalizeCase(s.line)}
-                        </span>
-                      </div>
-                      {i < nextSteps.length - 1 && <IconArrowRight className="w-3 h-3 text-slate-300 mx-1 shrink-0" />}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
+        {/* Footer */}
+        <div className="flex items-center justify-between text-xs pt-1" style={{ color: INK_400 }}>
+          <span>Gerado em {generatedAt}</span>
+          <LogoOrigem className="text-sm" />
         </div>
-
-      <div className="flex items-center justify-between px-6 py-2.5">
-        <span className="text-[9px] text-slate-400">Gerado em {generatedAt}</span>
-        <LogoOrigem className="text-sm" />
       </div>
     </div>
   );
