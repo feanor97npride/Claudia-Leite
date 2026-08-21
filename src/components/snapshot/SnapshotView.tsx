@@ -385,7 +385,7 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report }, ref) => {
       </div>
 
       <div
-        className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-6 border-t border-slate-100 bg-white"
+        className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-6 bg-white"
         style={{ height: FOOTER_H }}
       >
         <span className="text-[9px] text-slate-400">Gerado em {generatedAt}</span>
