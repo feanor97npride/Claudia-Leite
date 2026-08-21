@@ -1,4 +1,4 @@
-import { forwardRef, useLayoutEffect, useRef, useState } from 'react';
+import { forwardRef } from 'react';
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import type { Project, Report } from '../../types';
 import { STATUS_META } from '../../types';
@@ -23,13 +23,10 @@ interface Props {
   report: Report;
 }
 
-// Fixed 16:9 export canvas. Content is measured and scaled to fit inside it
-// so the exported snapshot is always this exact aspect ratio, regardless of
-// how much content a given week's report has.
+// Fixed export width keeps PNG/PDF output consistent; height grows with
+// content instead of being scaled/cropped to fit a fixed box, so items
+// never get squeezed down to unreadable sizes on longer reports.
 const FRAME_W = 1280;
-const FRAME_H = 720;
-const FOOTER_H = 30;
-const CONTENT_H = FRAME_H - FOOTER_H;
 
 // Section number badges (1-5) always use this single neutral color — the
 // status palette (green/amber/red) is reserved exclusively for semaphore
@@ -187,31 +184,6 @@ function segmentColorAbove(projects: Project[], i: number): string {
 }
 
 const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report }, ref) => {
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-
-  useLayoutEffect(() => {
-    const el = contentRef.current;
-    if (!el) return;
-
-    const measure = () => {
-      const naturalHeight = el.scrollHeight;
-      if (naturalHeight === 0) return;
-      const nextScale = Math.min(1, CONTENT_H / naturalHeight);
-      setScale(nextScale);
-      setOffset({
-        x: (FRAME_W - FRAME_W * nextScale) / 2,
-        y: (CONTENT_H - naturalHeight * nextScale) / 2,
-      });
-    };
-
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [report]);
-
   const generatedAt = new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: '2-digit',
@@ -239,18 +211,9 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report }, ref) => {
   return (
     <div
       ref={ref}
-      className="snapshot-frame bg-white mx-auto shadow-xl border border-slate-200 text-slate-800 relative overflow-hidden rounded-2xl"
-      style={{ width: FRAME_W, height: FRAME_H }}
+      className="snapshot-frame bg-white mx-auto shadow-xl border border-slate-200 text-slate-800 overflow-hidden rounded-2xl"
+      style={{ width: FRAME_W, fontSize: '12px' }}
     >
-      <div
-        ref={contentRef}
-        style={{
-          width: FRAME_W,
-          fontSize: '12px',
-          transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
-          transformOrigin: 'top left',
-        }}
-      >
         {/* Header */}
         <div className="bg-gradient-to-r from-[#0a1330] via-[#101f4d] to-[#16305c] text-white px-6 py-4">
           <div className="flex items-start justify-between gap-4">
@@ -390,12 +353,8 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report }, ref) => {
             </section>
           )}
         </div>
-      </div>
 
-      <div
-        className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-6 bg-white"
-        style={{ height: FOOTER_H }}
-      >
+      <div className="flex items-center justify-between px-6 py-2.5">
         <span className="text-[9px] text-slate-400">Gerado em {generatedAt}</span>
         <LogoOrigem className="text-sm" />
       </div>

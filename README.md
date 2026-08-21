@@ -13,11 +13,11 @@ acompanhamento das atividades da área de Sistemas (TI).
   próximos passos e riscos/bloqueios.
 - As seções **Entregas da semana** e **Avanços para a semana seguinte**
   recebem destaque visual em cada projeto — são o foco principal do report.
-- Botão "Gerar snapshot" produz a visualização formatada em um único quadro
-  no formato **16:9**, com o conteúdo ajustado automaticamente para caber
-  nesse formato independentemente da quantidade de projetos/texto.
+- Botão "Gerar snapshot" produz a visualização formatada em um único quadro,
+  com largura fixa e altura que cresce naturalmente conforme a quantidade de
+  projetos/texto — os itens nunca são espremidos para caber num tamanho fixo.
 - Exportação como **PNG** ou **PDF** (via `html2canvas-pro` + `jsPDF`),
-  sempre no formato 16:9.
+  sempre na mesma proporção do conteúdo renderizado.
 - Logotipo da empresa (ORIGEM) fixado no canto inferior direito do snapshot.
 - Histórico: cada semana gerada fica salva e pode ser reaberta ou duplicada
   como ponto de partida para a semana seguinte (os avanços antecipados viram
