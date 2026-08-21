@@ -21,18 +21,12 @@ export async function exportNodeAsPDF(node: HTMLElement, fileName: string) {
   const canvas = await renderCanvas(node);
   const imgData = canvas.toDataURL('image/jpeg', 0.92);
 
-  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const imgHeight = (canvas.height * pageWidth) / canvas.width;
+  // The node is always rendered at a fixed 16:9 size (see SnapshotView), so
+  // the PDF page is sized to match that exact aspect ratio.
+  const widthMM = (node.offsetWidth / 96) * 25.4;
+  const heightMM = (node.offsetHeight / 96) * 25.4;
 
-  if (imgHeight <= pageHeight) {
-    pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, imgHeight);
-  } else {
-    // Scale down to fit a single page rather than spilling onto a second one.
-    const scale = pageHeight / imgHeight;
-    pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth * scale, pageHeight);
-  }
-
+  const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [widthMM, heightMM] });
+  pdf.addImage(imgData, 'JPEG', 0, 0, widthMM, heightMM);
   pdf.save(fileName);
 }

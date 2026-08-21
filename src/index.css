@@ -13,16 +13,14 @@ body {
   background-color: #f1f5f9;
 }
 
-/* One-pager print target: fits an A4 page in portrait */
-.snapshot-page {
-  width: 210mm;
-  max-width: 210mm;
+/* Snapshot export canvas: fixed 16:9, sized inline via style on the element */
+.snapshot-frame {
   box-sizing: border-box;
 }
 
 @media print {
   @page {
-    size: A4;
+    size: landscape;
     margin: 8mm;
   }
 
@@ -30,15 +28,14 @@ body {
     visibility: hidden;
   }
 
-  .snapshot-page, .snapshot-page * {
+  .snapshot-frame, .snapshot-frame * {
     visibility: visible;
   }
 
-  .snapshot-page {
+  .snapshot-frame {
     position: absolute;
     top: 0;
     left: 0;
-    width: 100%;
     box-shadow: none !important;
   }
 
