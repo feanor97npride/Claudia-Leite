@@ -41,7 +41,6 @@ const SECTION_COLOR = '#1e293b';
 // confused with the on-track/attention/delayed semaphore.
 const DECOR = ['#0ea5b7', '#7c3aed', '#2563eb', '#0284c7', '#6366f1'];
 
-const STATUS_ICONS = { check: IconCheck, alert: IconAlert, clock: IconClock };
 const INDICATOR_ICONS = [IconGauge, IconTrendingUp, IconUsers, IconTarget, IconFlag];
 
 function linesOf(text: string): string[] {
@@ -127,29 +126,27 @@ function DeliveryTimeline({ projects }: { projects: Project[] }) {
       {projects.map((project, i) => {
         const started = project.percent > 0;
         const meta = STATUS_META[project.status];
-        const StatusIcon = STATUS_ICONS[meta.icon];
         const nodeColor = started ? meta.color : NOT_STARTED_COLOR;
         const isComplete = isNodeComplete(project);
         const isFirst = i === 0;
         const isLast = i === projects.length - 1;
         const segmentColor = isNodeComplete(project) ? meta.color : RAIL_IDLE_COLOR;
+        const bulletCount = linesOf(project.deliveries).length;
 
         return (
           <div key={project.id} className="flex gap-3">
-            {/* Rail column: shares height with the content column via flex stretch */}
-            <div className="flex flex-col items-center w-7 shrink-0">
+            {/* Rail column: a plain dot marker (status already reads from the badge below) */}
+            <div className="flex flex-col items-center w-3 shrink-0">
               <div className="w-0.5 flex-1" style={{ backgroundColor: isFirst ? 'transparent' : segmentColorAbove(projects, i) }} />
-              <div
-                className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-white"
-                style={{ backgroundColor: nodeColor }}
-              >
-                {started && <StatusIcon className="w-3.5 h-3.5" />}
-              </div>
+              <div className="w-3 h-3 rounded-full shrink-0 ring-2 ring-white" style={{ backgroundColor: nodeColor }} />
               <div className="w-0.5 flex-1" style={{ backgroundColor: isLast ? 'transparent' : segmentColor }} />
             </div>
 
             {/* Content column */}
-            <div className={`flex-1 min-w-0 rounded-lg bg-slate-50 border border-slate-200 p-2.5 ${isLast ? 'mb-0' : 'mb-2'}`}>
+            <div
+              className={`flex-1 min-w-0 rounded-lg bg-slate-50 border border-slate-200 border-l-4 p-2.5 ${isLast ? 'mb-0' : 'mb-2'}`}
+              style={{ borderLeftColor: nodeColor }}
+            >
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="text-[11px] font-bold text-slate-900">{project.name || 'Projeto sem nome'}</p>
                 <StatusBadge status={project.status} />
@@ -162,10 +159,19 @@ function DeliveryTimeline({ projects }: { projects: Project[] }) {
                   <span className="text-[8.5px] font-semibold text-slate-400 shrink-0">{project.percent}%</span>
                 </div>
               )}
-              <div className="text-[10px] text-slate-600 leading-snug mt-1">{renderLines(project.deliveries)}</div>
-              {project.risks.trim() && (
-                <p className="text-[8.5px] text-red-600 font-medium mt-1">⚠ {normalizeCase(project.risks.trim())}</p>
+              {bulletCount > 0 && (
+                <p className="text-[8.5px] text-slate-400 font-medium mt-1">
+                  {bulletCount} de {bulletCount} itens concluídos
+                </p>
               )}
+              <div className="text-[10px] text-slate-600 leading-snug mt-1">{renderLines(project.deliveries)}</div>
+              <div className="mt-1.5 pt-1.5 border-t border-slate-200">
+                {project.risks.trim() ? (
+                  <p className="text-[8.5px] text-red-600 font-medium">⚠ {normalizeCase(project.risks.trim())}</p>
+                ) : (
+                  <p className="text-[8.5px] text-slate-400 font-medium">Sem bloqueios identificados</p>
+                )}
+              </div>
             </div>
           </div>
         );
@@ -284,23 +290,25 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report }, ref) => {
               <StatTile icon={IconCheck} color={STATUS_META.on_track.color} value={statusCounts.on_track} label="No prazo" />
               <StatTile icon={IconAlert} color={STATUS_META.attention.color} value={statusCounts.attention} label="Atenção" />
               <StatTile icon={IconClock} color={STATUS_META.delayed.color} value={statusCounts.delayed} label="Atrasados" />
-              {report.indicators.map((ind, i) => {
-                const Icon = INDICATOR_ICONS[i % INDICATOR_ICONS.length];
-                const color = DECOR[(i + 1) % DECOR.length];
-                return <StatTile key={ind.id} icon={Icon} color={color} value={ind.value} label={ind.label} />;
-              })}
+              {report.indicators
+                .filter((ind) => ind.label.trim() || ind.value.trim())
+                .map((ind, i) => {
+                  const Icon = INDICATOR_ICONS[i % INDICATOR_ICONS.length];
+                  const color = DECOR[(i + 1) % DECOR.length];
+                  return <StatTile key={ind.id} icon={Icon} color={color} value={ind.value} label={ind.label} />;
+                })}
             </div>
           </section>
 
           {/* 2. Entregas - foco principal, em formato de timeline */}
           <section>
-            <SectionTitle n={2}>★ Entregas da semana</SectionTitle>
+            <SectionTitle n={2}>Entregas da semana</SectionTitle>
             <DeliveryTimeline projects={report.projects} />
           </section>
 
           {/* 3. Avanços - também em destaque, um card por avanço */}
           <section>
-            <SectionTitle n={3}>★ Avanços antecipados para a próxima semana</SectionTitle>
+            <SectionTitle n={3}>Avanços antecipados para a próxima semana</SectionTitle>
             {advances.length === 0 ? (
               <p className="text-slate-400 italic text-[10px]">Nenhum avanço antecipado registrado.</p>
             ) : (
