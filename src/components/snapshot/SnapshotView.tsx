@@ -369,7 +369,7 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report }, ref) => {
         style={{ height: FOOTER_H }}
       >
         <span className="text-[9px] text-slate-400">Gerado em {generatedAt}</span>
-        <LogoOrigem className="h-4" />
+        <LogoOrigem className="text-sm" />
       </div>
     </div>
   );
