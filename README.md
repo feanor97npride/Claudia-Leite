@@ -57,15 +57,66 @@ acompanhamento das atividades da área de Sistemas (TI).
 
 ## Persistência de dados
 
-Os dados são salvos no `localStorage` do navegador, namespaced por usuário
-(identificado pelo nome informado no login). Isso significa que:
+O relatório semanal (projetos, entregas, indicadores, texto livre) continua
+salvo no `localStorage` do navegador, namespaced por usuário — isso não
+mudou. Os **relatórios não sincronizam entre dispositivos/navegadores**,
+por não terem backend próprio nesta versão.
 
-- Os relatórios não se perdem ao fechar a aba ou o navegador.
-- Cada usuário só vê os relatórios salvos com o próprio nome, no mesmo
-  navegador/dispositivo.
-- Os dados **não sincronizam entre dispositivos ou navegadores diferentes**,
-  pois não há backend/banco de dados nesta versão. Para isso, seria
-  necessário adicionar um serviço de autenticação e uma API/banco de dados.
+O **Roadmap por Objetivos/Atividades**, por outro lado, agora vive num banco
+Postgres real (ver seção seguinte) — é dado compartilhado entre todos os
+usuários, com controle de acesso e trilha de auditoria de verdade.
+
+## Backend: autenticação, roles e governança do roadmap
+
+O roadmap (Objetivos/Atividades) passou a ser dado autoritativo no
+**servidor** (Postgres + funções serverless em `/api`), não mais no
+navegador — é a única forma de validar permissões de verdade (nunca
+confiando só em esconder botões no front-end) e manter uma trilha de
+auditoria que o próprio usuário não possa editar.
+
+**Implementado nesta fase:**
+- Login com e-mail/senha (hash com `bcrypt`, nunca texto plano); sessão
+  guardada no banco (não JWT — ver o comentário em `server/auth.ts` com a
+  justificativa completa), revogável a qualquer momento.
+- Dois papéis: **Admin** (leitura e escrita) e **Visualizador** (somente
+  leitura) — toda ação de escrita é validada no servidor (`server/roadmap.ts`),
+  não apenas escondida na interface.
+- Usuário Admin padrão criado automaticamente (`npm run db:seed-admin`),
+  com senha temporária impressa uma única vez no console e troca de senha
+  sinalizada (`mustChangePassword`).
+- Trilha de auditoria (`audit_log`): toda edição de Objetivo/Atividade grava
+  campo alterado, valor anterior/novo, classificação (escopo/prazo/status) e
+  o usuário responsável (ou "sistema automatizado").
+- Gestão de mudanças: alterar uma data planejada já definida exige um motivo
+  ("Motivo da mudança"); o "Nº de replanejamentos" conta só replanejamentos
+  reais, não a definição inicial da data.
+- Versionamento do range de datas de um Objetivo — a versão anterior fica
+  preservada em `objetivo_versions`, nunca sobrescrita silenciosamente.
+- Campos RACI descritivos por atividade (Responsável/Executor), independentes
+  da role de acesso ao sistema.
+
+**Ainda não integrado ao front-end** (próxima etapa): a tela de login, o
+editor de roadmap e o snapshot ainda leem/escrevem via `localStorage`, não
+pela API acima. O backend já está pronto e testado ponta a ponta; falta
+trocar a fiação do `RoadmapEditor`/`SnapshotView`/`App.tsx` para consumir
+esses endpoints, adicionar a tela de login com senha, e expor no front-end o
+histórico de alterações, os indicadores de governança e os campos RACI.
+
+### Configuração
+
+```bash
+cp .env.example .env.local   # edite DATABASE_URL com seu Postgres
+npm run db:migrate           # cria as tabelas (só aditivo — nunca apaga nada)
+npm run db:seed-admin        # cria o admin padrão, se ainda não existir
+npm run dev                  # a própria Vite dev server já serve /api
+```
+
+Em produção (Vercel), defina `DATABASE_URL` em Project Settings → Environment
+Variables apontando para o seu Postgres hospedado, e rode
+`npm run db:migrate` (e, na primeira vez, `npm run db:seed-admin`) uma vez
+apontando para esse mesmo banco antes/depois do primeiro deploy. As rotas em
+`/api/*.ts` são detectadas automaticamente pela Vercel como funções
+serverless — não é necessário `vercel.json`.
 
 ## Rodando localmente
 
@@ -88,3 +139,5 @@ npm run preview
 - React + TypeScript + Vite
 - Tailwind CSS v4
 - html2canvas-pro + jsPDF (exportação PNG/PDF)
+- Backend: funções serverless (`/api`) + Postgres (`pg`) + `bcrypt`, servidas
+  localmente pela própria Vite dev server via um plugin em `vite.config.ts`
