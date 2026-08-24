@@ -86,3 +86,13 @@ export async function fetchAuditLog(
 ): Promise<{ entries: AuditEntry[]; replanCount: number }> {
   return request(`/api/audit-log?entityType=${entityType}&entityId=${encodeURIComponent(entityId)}`);
 }
+
+const OBJETIVO_IDS: ObjetivoId[] = ['diagnostico', 'governanca', 'operacao', 'estrategia_futura'];
+
+/** Bloco 1.4: replan count is aggregated per-objetivo server-side (server/audit.ts
+ *  countReplansForObjetivo already includes that objetivo's atividades), so summing
+ *  across the 4 fixed objetivos gives the roadmap-wide total with no double counting. */
+export async function fetchTotalReplanCount(): Promise<number> {
+  const results = await Promise.all(OBJETIVO_IDS.map((id) => fetchAuditLog('objetivo', id)));
+  return results.reduce((sum, r) => sum + r.replanCount, 0);
+}

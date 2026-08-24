@@ -62,6 +62,39 @@ export function computeObjetivoAheadBehind(objetivoId: ObjetivoId, atividades: A
   return Math.round(values.reduce((sum, v) => sum + v, 0) / values.length);
 }
 
+export interface GovernanceIndicators {
+  onTimePercent: number | null;
+  earlyPercent: number | null;
+  latePercent: number | null;
+  withDataCount: number;
+  extraActivitiesCount: number;
+  averageAheadBehind: number | null;
+}
+
+/**
+ * Bloco 1.4: indicadores de governança agregados de TODO o roadmap (todos os
+ * objetivos juntos), reaproveitando o mesmo cálculo de adiantamento/atraso
+ * usado por objetivo. % são sobre as atividades planejadas concluídas que
+ * têm dados de prazo suficientes — as demais (sem prazo, ou não concluídas)
+ * simplesmente não entram, em vez de contar como 0%.
+ */
+export function computeGovernanceIndicators(atividades: Atividade[]): GovernanceIndicators {
+  const values = atividades
+    .filter((a) => a.kind === 'planned')
+    .map(computeAheadBehindPercent)
+    .filter((v): v is number => v !== null);
+  const withDataCount = values.length;
+  const pct = (count: number) => (withDataCount === 0 ? null : Math.round((count / withDataCount) * 100));
+  return {
+    onTimePercent: pct(values.filter((v) => v === 0).length),
+    earlyPercent: pct(values.filter((v) => v > 0).length),
+    latePercent: pct(values.filter((v) => v < 0).length),
+    withDataCount,
+    extraActivitiesCount: atividades.filter((a) => a.kind === 'extra').length,
+    averageAheadBehind: withDataCount === 0 ? null : Math.round(values.reduce((sum, v) => sum + v, 0) / withDataCount),
+  };
+}
+
 function completedInWeek(objetivoId: ObjetivoId, atividades: Atividade[], weekStart: string, kind: ActivityKind) {
   return atividades
     .filter(

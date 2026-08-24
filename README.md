@@ -111,13 +111,21 @@ auditoria que o próprio usuário não possa editar.
 - Campos RACI (Responsável/Executor) e o motivo de replanejamento aparecem
   no modo de edição do Objetivo/Atividade, com a mesma validação do servidor
   replicada no cliente para feedback imediato antes do round-trip de rede.
+- Painel **"Histórico de Alterações"** (botão "🕘 Histórico" em cada Objetivo
+  e em cada Atividade) — mostra a trilha de auditoria completa daquele item
+  (campo, valor anterior/novo, classificação, motivo quando houver, usuário e
+  data), visível para Admin e Visualizador, já que é um artefato de
+  governança e não uma superfície de edição. Fecha com Esc ou clicando fora.
+- Bloco **"Indicadores de Governança"** no editor do relatório: % de
+  atividades planejadas concluídas no prazo/adiantadas/atrasadas, nº de
+  replanejamentos (agregado de todo o roadmap), contagem de atividades
+  extras e o adiantamento médio geral — reaproveita os mesmos cálculos já
+  usados por objetivo.
 
-**Ainda não exposto no front-end** (próxima etapa): o painel "Histórico de
-Alterações" (trilha de auditoria por Objetivo/Atividade — o endpoint
-`/api/audit-log` já existe e é consumido apenas internamente para o contador
-de replanejamentos) e o bloco de "Indicadores de Governança" no relatório
-semanal (% no prazo/atrasado/adiantado, nº de replanejamentos, atividades
-extras).
+**Ainda não exposto no front-end** (próximos passos de UX): modais de
+confirmação para ações destrutivas, empty states mais orientativos, revisão
+formal de acessibilidade/responsividade, e uma paleta de cores centralizada
+como constantes reutilizáveis em vez de classes Tailwind espalhadas.
 
 ### Configuração
 

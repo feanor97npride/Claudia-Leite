@@ -9,6 +9,7 @@ import {
 } from '../../lib/roadmap';
 import { computeTotalWeeks, currentWeekOfObjetivo, formatObjetivoPeriodLabel, todayISO } from '../../utils/date';
 import { useToast } from '../../contexts/ToastContext';
+import AuditHistoryModal from '../history/AuditHistoryModal';
 
 interface Props {
   objetivos: Objetivo[];
@@ -72,6 +73,7 @@ function AtividadeRow({
   onInsertDelivery,
 }: AtividadeRowProps) {
   const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id ?? '');
+  const [historyOpen, setHistoryOpen] = useState(false);
   const { showToast } = useToast();
 
   async function setStatus(status: ActivityStatus) {
@@ -113,7 +115,7 @@ function AtividadeRow({
   const needsReason = replanningStart || replanningEnd;
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1" data-testid={`atividade-row-${a.id}`}>
       <div className="flex flex-wrap items-center gap-2">
         {nameEditable ? (
           <input
@@ -183,6 +185,15 @@ function AtividadeRow({
             Remover
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => setHistoryOpen(true)}
+          title="Histórico de alterações"
+          aria-label="Ver histórico de alterações"
+          className="text-slate-400 hover:text-slate-900 text-xs shrink-0 px-1"
+        >
+          🕘
+        </button>
       </div>
       {editingObjetivo && (
         <div className="flex flex-col gap-1 rounded-lg bg-slate-50 p-2">
@@ -262,6 +273,14 @@ function AtividadeRow({
           {a.raciResponsibleName?.trim() && <>Executor: {a.raciResponsibleName}</>}
         </p>
       )}
+      {historyOpen && (
+        <AuditHistoryModal
+          entityType="atividade"
+          entityId={a.id}
+          title={a.name || 'Atividade'}
+          onClose={() => setHistoryOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -291,6 +310,7 @@ function ObjetivoCard({
 }: ObjetivoCardProps) {
   const { showToast } = useToast();
   const [editing, setEditing] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draftName, setDraftName] = useState(objetivo.name);
   const [draftEntregaLabel, setDraftEntregaLabel] = useState(objetivo.entregaLabel);
@@ -424,7 +444,7 @@ function ObjetivoCard({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3" data-testid={`objetivo-card-${objetivo.id}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 space-y-1">
           {editing ? (
@@ -471,17 +491,36 @@ function ObjetivoCard({
           <span className="text-xs font-medium text-slate-500 bg-slate-100 rounded-full px-2.5 py-1">
             Semana {week} de {objetivo.totalWeeks}
           </span>
-          {!editing && !readOnly && (
-            <button
-              type="button"
-              onClick={startEditing}
-              className="text-[11px] font-medium text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded px-2 py-1 transition-colors"
-            >
-              ✎ Editar
-            </button>
-          )}
+          <div className="flex gap-1">
+            {!editing && (
+              <button
+                type="button"
+                onClick={() => setHistoryOpen(true)}
+                className="text-[11px] font-medium text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded px-2 py-1 transition-colors"
+              >
+                🕘 Histórico
+              </button>
+            )}
+            {!editing && !readOnly && (
+              <button
+                type="button"
+                onClick={startEditing}
+                className="text-[11px] font-medium text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded px-2 py-1 transition-colors"
+              >
+                ✎ Editar
+              </button>
+            )}
+          </div>
         </div>
       </div>
+      {historyOpen && (
+        <AuditHistoryModal
+          entityType="objetivo"
+          entityId={objetivo.id}
+          title={`${objetivo.entregaLabel} — ${objetivo.name}`}
+          onClose={() => setHistoryOpen(false)}
+        />
+      )}
 
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
