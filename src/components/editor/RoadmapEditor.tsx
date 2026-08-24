@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ActivityStatus, Atividade, AtividadePatch, Objetivo, ObjetivoId, Project } from '../../types';
-import { ACTIVITY_STATUS_META } from '../../types';
+import { ACTIVITY_STATUS_META, TONE_META } from '../../types';
 import {
   atividadesForObjetivo,
   computeAheadBehindPercent,
@@ -45,9 +45,11 @@ function AheadBehindBadge({ atividade }: { atividade: Atividade }) {
   if (pct === null) {
     return <span className="text-[10px] text-slate-400 italic shrink-0">sem dados de prazo</span>;
   }
-  const color = pct > 0 ? 'text-emerald-700 bg-emerald-50' : pct < 0 ? 'text-red-700 bg-red-50' : 'text-slate-600 bg-slate-100';
+  const tone = TONE_META[pct > 0 ? 'good' : pct < 0 ? 'bad' : 'neutral'];
   const label = pct > 0 ? `+${pct}% adiantada` : pct < 0 ? `${pct}% atrasada` : 'No prazo (0%)';
-  return <span className={`text-[10px] font-semibold rounded px-1.5 py-0.5 shrink-0 ${color}`}>{label}</span>;
+  return (
+    <span className={`text-[10px] font-semibold rounded px-1.5 py-0.5 shrink-0 ${tone.text} ${tone.bg}`}>{label}</span>
+  );
 }
 
 interface AtividadeRowProps {
@@ -140,6 +142,7 @@ function AtividadeRow({
               if (a.kind === 'extra' && !editingObjetivo) void handleExtraNameBlur(e.target.value);
             }}
             placeholder={a.kind === 'extra' ? 'Nome da atividade extra' : 'Nome da atividade'}
+            aria-label={a.kind === 'extra' ? 'Nome da atividade extra' : 'Nome da atividade'}
             className={`flex-1 min-w-[120px] ${INPUT_CLASS}`}
           />
         ) : (
@@ -156,6 +159,7 @@ function AtividadeRow({
           <select
             value={a.status}
             onChange={(e) => void setStatus(e.target.value as ActivityStatus)}
+            aria-label={`Status da atividade: ${a.name || 'sem nome'}`}
             className={`${INPUT_CLASS} shrink-0`}
           >
             {STATUS_OPTIONS.map((s) => (
@@ -172,6 +176,7 @@ function AtividadeRow({
               <select
                 value={selectedProjectId}
                 onChange={(e) => setSelectedProjectId(e.target.value)}
+                aria-label="Projeto para inserir a entrega"
                 className={`text-[10px] px-1 shrink-0 max-w-[110px] ${INPUT_CLASS}`}
               >
                 {projects.map((p, i) => (
@@ -218,6 +223,7 @@ function AtividadeRow({
               type="date"
               value={plannedStartValue}
               onChange={(e) => onDraftChange(a.id, { plannedStart: e.target.value })}
+              aria-label={`Início planejado — ${a.name || 'atividade'}`}
               className={`${INPUT_CLASS} shrink-0`}
             />
             <span className="text-[10px] text-slate-400 shrink-0">até</span>
@@ -225,6 +231,7 @@ function AtividadeRow({
               type="date"
               value={plannedEndValue}
               onChange={(e) => onDraftChange(a.id, { plannedEnd: e.target.value })}
+              aria-label={`Fim planejado — ${a.name || 'atividade'}`}
               className={`${INPUT_CLASS} shrink-0`}
             />
             {a.status === 'done' && (
@@ -234,6 +241,7 @@ function AtividadeRow({
                   type="date"
                   value={completedAtValue}
                   onChange={(e) => onDraftChange(a.id, { completedAt: e.target.value })}
+                  aria-label={`Data de conclusão — ${a.name || 'atividade'}`}
                   className={`${INPUT_CLASS} shrink-0`}
                 />
                 {completedAtIsFuture && (
@@ -249,6 +257,7 @@ function AtividadeRow({
               value={draft?.reason ?? ''}
               onChange={(e) => onDraftChange(a.id, { reason: e.target.value })}
               placeholder="Motivo da mudança (obrigatório ao replanejar) — ex: Dependência externa"
+              aria-label="Motivo da mudança"
               className={`w-full ${INPUT_CLASS} ${!draft?.reason?.trim() ? 'border-amber-400' : ''}`}
             />
           )}
@@ -258,6 +267,7 @@ function AtividadeRow({
               value={raciAccountableValue}
               onChange={(e) => onDraftChange(a.id, { raciAccountableName: e.target.value })}
               placeholder="Nome"
+              aria-label="Responsável (Accountable)"
               className={`flex-1 min-w-[100px] ${INPUT_CLASS}`}
             />
           </div>
@@ -267,6 +277,7 @@ function AtividadeRow({
               value={raciResponsibleValue}
               onChange={(e) => onDraftChange(a.id, { raciResponsibleName: e.target.value })}
               placeholder="Nome"
+              aria-label="Executor (Responsible)"
               className={`flex-1 min-w-[100px] ${INPUT_CLASS}`}
             />
           </div>
@@ -274,6 +285,7 @@ function AtividadeRow({
             value={noteValue}
             onChange={(e) => onDraftChange(a.id, { note: e.target.value })}
             placeholder="Anotação (opcional)"
+            aria-label="Anotação"
             className={INPUT_CLASS}
           />
         </div>
@@ -477,12 +489,14 @@ function ObjetivoCard({
                 value={draftEntregaLabel}
                 onChange={(e) => setDraftEntregaLabel(e.target.value)}
                 placeholder="Rótulo da entrega (ex: Entrega 1)"
+                aria-label="Rótulo da entrega"
                 className={`w-full font-semibold uppercase tracking-wide ${INPUT_CLASS}`}
               />
               <input
                 value={draftName}
                 onChange={(e) => setDraftName(e.target.value)}
                 placeholder="Nome do objetivo"
+                aria-label="Nome do objetivo"
                 className={`w-full text-sm font-bold ${INPUT_CLASS}`}
               />
               <div className="flex items-center gap-1.5">
@@ -490,6 +504,7 @@ function ObjetivoCard({
                   type="date"
                   value={draftPeriodStart}
                   onChange={(e) => setDraftPeriodStart(e.target.value)}
+                  aria-label="Início do período do objetivo"
                   className={INPUT_CLASS}
                 />
                 <span className="text-xs text-slate-400">até</span>
@@ -497,6 +512,7 @@ function ObjetivoCard({
                   type="date"
                   value={draftPeriodEnd}
                   onChange={(e) => setDraftPeriodEnd(e.target.value)}
+                  aria-label="Fim do período do objetivo"
                   className={INPUT_CLASS}
                 />
               </div>
@@ -559,11 +575,7 @@ function ObjetivoCard({
             className={`text-xs font-semibold ${
               aheadBehind === null
                 ? 'text-slate-400 italic'
-                : aheadBehind > 0
-                  ? 'text-emerald-700'
-                  : aheadBehind < 0
-                    ? 'text-red-700'
-                    : 'text-slate-600'
+                : TONE_META[aheadBehind > 0 ? 'good' : aheadBehind < 0 ? 'bad' : 'neutral'].text
             }`}
           >
             {aheadBehind === null ? 'sem dados' : `${aheadBehind > 0 ? '+' : ''}${aheadBehind}%`}
@@ -572,7 +584,10 @@ function ObjetivoCard({
       </div>
 
       {items.length === 0 ? (
-        <p className="text-xs text-slate-400 italic">Nenhuma atividade cadastrada ainda.</p>
+        <p className="text-xs text-slate-400 italic">
+          Nenhuma atividade cadastrada ainda.
+          {!readOnly && ' Adicione uma atividade extra abaixo para começar.'}
+        </p>
       ) : (
         <div className="space-y-2">
           {items.map((a) => (
@@ -629,6 +644,7 @@ function ObjetivoCard({
                 }
               }}
               placeholder="Nome da atividade extra"
+              aria-label="Nome da nova atividade extra"
               className={`flex-1 ${INPUT_CLASS}`}
             />
             <button

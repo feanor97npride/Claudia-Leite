@@ -121,11 +121,24 @@ auditoria que o próprio usuário não possa editar.
   replanejamentos (agregado de todo o roadmap), contagem de atividades
   extras e o adiantamento médio geral — reaproveita os mesmos cálculos já
   usados por objetivo.
+- Modal de **confirmação** antes de excluir uma atividade extra (ação
+  destrutiva), com Esc/clique-fora para cancelar.
+- Paleta de cores/tons (`Tone`, `TONE_META`, `ROLE_META` em `src/types.ts`,
+  ao lado de `STATUS_META`/`ACTIVITY_STATUS_META` já existentes) como
+  constantes únicas reutilizadas por `RoadmapEditor`, `GovernanceIndicators`
+  e o cabeçalho, em vez de cada componente decidir sua própria cor.
+- Passe de acessibilidade nos formulários do roadmap/relatório: `aria-label`
+  em todo select/input sem `<label>` visível (status, datas planejadas,
+  campos RACI, nome de projeto/atividade), `aria-pressed` nos botões de
+  status tipo semáforo, e navegação por teclado (Tab/Enter/Esc) já cobre os
+  modais e o formulário de nova atividade extra.
+- Empty states revisados para serem orientativos (ex: "nenhuma atividade
+  cadastrada — adicione uma atividade extra abaixo para começar").
 
-**Ainda não exposto no front-end** (próximos passos de UX): modais de
-confirmação para ações destrutivas, empty states mais orientativos, revisão
-formal de acessibilidade/responsividade, e uma paleta de cores centralizada
-como constantes reutilizáveis em vez de classes Tailwind espalhadas.
+**Ainda não feito** (próximos passos de UX, menor prioridade): revisão
+formal de contraste de cor (WCAG) e responsividade em telas mobile/tablet,
+e uma estrutura de roles mais extensível (hoje um enum fixo `admin`/`viewer`,
+funcional mas não desenhado para adicionar um 3º papel facilmente).
 
 ### Configuração
 

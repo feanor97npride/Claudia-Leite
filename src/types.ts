@@ -163,3 +163,19 @@ export const STATUS_META: Record<
   attention: { label: 'Atenção', color: '#d97706', dot: 'bg-amber-500', icon: 'alert' },
   delayed: { label: 'Atrasado', color: '#dc2626', dot: 'bg-red-500', icon: 'clock' },
 };
+
+/** Generic good/bad/neutral signal color, reused wherever a number needs a
+ *  quick visual read (ahead/behind %, governance indicators, replan counts)
+ *  — one definition instead of each component picking its own shades. */
+export type Tone = 'good' | 'bad' | 'neutral';
+
+export const TONE_META: Record<Tone, { text: string; bg: string }> = {
+  good: { text: 'text-emerald-700', bg: 'bg-emerald-50' },
+  bad: { text: 'text-red-700', bg: 'bg-red-50' },
+  neutral: { text: 'text-slate-600', bg: 'bg-slate-100' },
+};
+
+export const ROLE_META: Record<Role, { label: string }> = {
+  admin: { label: 'Admin' },
+  viewer: { label: 'Visualizador' },
+};

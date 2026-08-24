@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Atividade, AtividadePatch, AuthedUser, Objetivo, ObjetivoId, Report, UserProfile } from './types';
+import { ROLE_META } from './types';
 import { deleteReport, getReports, saveReport } from './lib/storage';
 import { blankReport, duplicateForNextWeek } from './lib/factory';
 import { buildRoadmapSnapshot } from './lib/roadmap';
@@ -21,8 +22,6 @@ import SnapshotView from './components/snapshot/SnapshotView';
 import HistoryPanel from './components/history/HistoryPanel';
 
 type View = 'editor' | 'snapshot';
-
-const ROLE_LABEL: Record<AuthedUser['role'], string> = { admin: 'Admin', viewer: 'Visualizador' };
 
 function deriveProfile(user: AuthedUser): UserProfile {
   return { userId: user.id, displayName: user.displayName, area: 'Sistemas (TI)', responsible: user.displayName };
@@ -206,7 +205,7 @@ export default function App() {
             <span className="text-xs text-slate-500 hidden sm:inline">
               Olá, {user.displayName}{' '}
               <span className="text-slate-400">
-                ({ROLE_LABEL[user.role]})
+                ({ROLE_META[user.role].label})
               </span>
             </span>
             <button

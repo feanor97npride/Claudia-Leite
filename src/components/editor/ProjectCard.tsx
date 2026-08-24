@@ -39,6 +39,7 @@ export default function ProjectCard({
             onClick={onMoveUp}
             disabled={!canMoveUp}
             title="Mover para cima"
+            aria-label="Mover projeto para cima"
             className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-25 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors leading-none"
           >
             ▲
@@ -49,6 +50,7 @@ export default function ProjectCard({
             onClick={onMoveDown}
             disabled={!canMoveDown}
             title="Mover para baixo"
+            aria-label="Mover projeto para baixo"
             className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-25 disabled:hover:bg-transparent disabled:hover:text-slate-400 transition-colors leading-none"
           >
             ▼
@@ -60,6 +62,7 @@ export default function ProjectCard({
               value={project.name}
               onChange={(e) => set('name', e.target.value)}
               placeholder="Nome do projeto/atividade"
+              aria-label="Nome do projeto/atividade"
               className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-slate-900/20"
             />
             {canRemove && (
@@ -84,6 +87,7 @@ export default function ProjectCard({
                     key={s}
                     type="button"
                     onClick={() => set('status', s)}
+                    aria-pressed={active}
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors ${
                       active ? 'text-white' : 'text-slate-600 hover:bg-slate-50'
                     }`}

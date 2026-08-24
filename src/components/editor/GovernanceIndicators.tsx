@@ -1,4 +1,5 @@
-import type { Atividade } from '../../types';
+import type { Atividade, Tone } from '../../types';
+import { TONE_META } from '../../types';
 import { computeGovernanceIndicators } from '../../lib/roadmap';
 
 interface Props {
@@ -6,10 +7,8 @@ interface Props {
   replanCount: number;
 }
 
-type Tone = 'good' | 'bad' | 'neutral';
-
-function Tile({ value, label, tone = 'neutral' }: { value: string; label: string; tone?: Tone }) {
-  const color = tone === 'good' ? 'text-emerald-700' : tone === 'bad' ? 'text-red-700' : 'text-slate-900';
+function Tile({ value, label, tone }: { value: string; label: string; tone?: Tone }) {
+  const color = tone ? TONE_META[tone].text : 'text-slate-900';
   return (
     <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2.5 text-center">
       <p className={`text-lg font-bold leading-none ${color}`}>{value}</p>

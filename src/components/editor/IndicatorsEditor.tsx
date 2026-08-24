@@ -27,12 +27,14 @@ export default function IndicatorsEditor({ indicators, onChange }: Props) {
             value={ind.label}
             onChange={(e) => update(ind.id, { label: e.target.value })}
             placeholder="Indicador (ex: SLA)"
+            aria-label="Nome do indicador"
             className="flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
           />
           <input
             value={ind.value}
             onChange={(e) => update(ind.id, { value: e.target.value })}
             placeholder="Valor (ex: 98%)"
+            aria-label="Valor do indicador"
             className="w-28 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
           />
           <button

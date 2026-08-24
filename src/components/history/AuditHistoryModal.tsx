@@ -110,6 +110,8 @@ export default function AuditHistoryModal({ entityType, entityId, title, onClose
           ) : entries.length === 0 ? (
             <p className="text-sm text-slate-400 italic py-6 text-center border border-dashed border-slate-200 rounded-xl">
               Nenhuma alteração registrada ainda.
+              <br />
+              Edições feitas aqui (nome, datas, status, RACI) vão aparecer nesta lista.
             </p>
           ) : (
             <ul className="space-y-2">
