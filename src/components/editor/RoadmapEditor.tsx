@@ -10,6 +10,7 @@ import {
 import { computeTotalWeeks, currentWeekOfObjetivo, formatObjetivoPeriodLabel, todayISO } from '../../utils/date';
 import { useToast } from '../../contexts/ToastContext';
 import AuditHistoryModal from '../history/AuditHistoryModal';
+import ConfirmDialog from '../ConfirmDialog';
 
 interface Props {
   objetivos: Objetivo[];
@@ -74,7 +75,21 @@ function AtividadeRow({
 }: AtividadeRowProps) {
   const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id ?? '');
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const { showToast } = useToast();
+
+  async function handleConfirmRemove() {
+    setRemoving(true);
+    try {
+      await onRemove(a.id);
+      setConfirmingRemove(false);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Não foi possível remover a atividade.', 'error');
+    } finally {
+      setRemoving(false);
+    }
+  }
 
   async function setStatus(status: ActivityStatus) {
     try {
@@ -179,7 +194,7 @@ function AtividadeRow({
         {a.kind === 'extra' && !readOnly && !editingObjetivo && (
           <button
             type="button"
-            onClick={() => onRemove(a.id)}
+            onClick={() => setConfirmingRemove(true)}
             className="text-slate-400 hover:text-red-600 text-xs px-1 shrink-0"
           >
             Remover
@@ -279,6 +294,15 @@ function AtividadeRow({
           entityId={a.id}
           title={a.name || 'Atividade'}
           onClose={() => setHistoryOpen(false)}
+        />
+      )}
+      {confirmingRemove && (
+        <ConfirmDialog
+          title="Remover atividade extra?"
+          message={`"${a.name || 'Atividade'}" será removida permanentemente. Esta ação não pode ser desfeita.`}
+          confirmLabel={removing ? 'Removendo…' : 'Remover'}
+          onConfirm={() => void handleConfirmRemove()}
+          onCancel={() => setConfirmingRemove(false)}
         />
       )}
     </div>
