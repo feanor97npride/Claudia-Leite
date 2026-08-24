@@ -270,6 +270,12 @@ export default function App() {
           />
         </aside>
       </main>
+
+      <footer className="no-print border-t border-slate-200">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-3 text-center text-[11px] text-slate-400">
+          Status Report Semanal · v{__APP_VERSION__}
+        </div>
+      </footer>
     </div>
   );
 }
