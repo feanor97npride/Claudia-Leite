@@ -42,6 +42,47 @@ export interface UserProfile {
   responsible: string;
 }
 
+// --- Auth (system access role — Admin/Visualizador; unrelated to RACI above) ---
+export type Role = 'admin' | 'viewer';
+
+export interface AuthedUser {
+  id: string;
+  email: string;
+  displayName: string;
+  role: Role;
+  mustChangePassword: boolean;
+}
+
+// --- Governance: audit trail entry (Bloco 1.1) ---
+export type ChangeType = 'escopo' | 'prazo' | 'status' | 'outro';
+export type AuditEntityType = 'objetivo' | 'atividade';
+
+export interface AuditEntry {
+  id: number;
+  entityType: AuditEntityType;
+  entityId: string;
+  field: string;
+  oldValue: string | null;
+  newValue: string | null;
+  changeType: ChangeType;
+  reason: string | null;
+  userId: string | null;
+  actorLabel: string;
+  createdAt: string;
+}
+
+export interface ObjetivoVersion {
+  id: string;
+  objetivo_id: string;
+  period_start: string;
+  period_end: string;
+  period_label: string;
+  total_weeks: number;
+  changed_reason: string | null;
+  changed_by: string | null;
+  superseded_at: string;
+}
+
 // --- Roadmap: Objetivos (fixed quarters) ---
 export type ObjetivoId = 'diagnostico' | 'governanca' | 'operacao' | 'estrategia_futura';
 
@@ -69,6 +110,24 @@ export interface Atividade {
   note?: string; // free-text annotation, informational only — never affects progress %
   plannedStart?: string; // ISO date — planned start, used only for the ahead/behind % calculation
   plannedEnd?: string; // ISO date — planned end, used only for the ahead/behind % calculation
+  // RACI (descriptive only — unrelated to the system access role below)
+  raciAccountableName?: string; // "Responsável"
+  raciResponsibleName?: string; // "Executor"
+}
+
+/** Partial update sent to PATCH /api/atividades/:id — nullable fields clear
+ *  that column server-side; `reason` is required only when replanning an
+ *  already-set planned date (Bloco 1.2), validated on the server. */
+export interface AtividadePatch {
+  name?: string;
+  note?: string | null;
+  status?: ActivityStatus;
+  completedAt?: string | null;
+  plannedStart?: string | null;
+  plannedEnd?: string | null;
+  raciAccountableName?: string | null;
+  raciResponsibleName?: string | null;
+  reason?: string;
 }
 
 export const ACTIVITY_STATUS_META: Record<ActivityStatus, { label: string }> = {

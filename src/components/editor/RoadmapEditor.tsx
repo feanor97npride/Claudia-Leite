@@ -1,22 +1,25 @@
 import { useState } from 'react';
-import type { ActivityStatus, Atividade, Objetivo, Project } from '../../types';
+import type { ActivityStatus, Atividade, AtividadePatch, Objetivo, ObjetivoId, Project } from '../../types';
 import { ACTIVITY_STATUS_META } from '../../types';
 import {
   atividadesForObjetivo,
-  blankAtividade,
   computeAheadBehindPercent,
   computeObjetivoAheadBehind,
   computeObjetivoProgress,
 } from '../../lib/roadmap';
 import { computeTotalWeeks, currentWeekOfObjetivo, formatObjetivoPeriodLabel, todayISO } from '../../utils/date';
+import { useToast } from '../../contexts/ToastContext';
 
 interface Props {
   objetivos: Objetivo[];
-  onObjetivosChange: (objetivos: Objetivo[]) => void;
   atividades: Atividade[];
-  onChange: (atividades: Atividade[]) => void;
   projects: Project[];
+  readOnly: boolean;
   onInsertDelivery: (projectId: string, text: string) => void;
+  onUpdateObjetivo: (id: ObjetivoId, patch: Partial<Objetivo>) => Promise<void>;
+  onUpdateAtividade: (id: string, patch: AtividadePatch) => Promise<void>;
+  onAddExtra: (objetivoId: ObjetivoId, name: string) => Promise<void>;
+  onRemoveExtra: (id: string) => Promise<void>;
 }
 
 const STATUS_OPTIONS: ActivityStatus[] = ['planned', 'in_progress', 'done'];
@@ -30,6 +33,9 @@ export interface ActivityDraft {
   plannedStart?: string;
   plannedEnd?: string;
   completedAt?: string;
+  raciAccountableName?: string;
+  raciResponsibleName?: string;
+  reason?: string;
 }
 
 function AheadBehindBadge({ atividade }: { atividade: Atividade }) {
@@ -39,25 +45,25 @@ function AheadBehindBadge({ atividade }: { atividade: Atividade }) {
   }
   const color = pct > 0 ? 'text-emerald-700 bg-emerald-50' : pct < 0 ? 'text-red-700 bg-red-50' : 'text-slate-600 bg-slate-100';
   const label = pct > 0 ? `+${pct}% adiantada` : pct < 0 ? `${pct}% atrasada` : 'No prazo (0%)';
-  return (
-    <span className={`text-[10px] font-semibold rounded px-1.5 py-0.5 shrink-0 ${color}`}>{label}</span>
-  );
+  return <span className={`text-[10px] font-semibold rounded px-1.5 py-0.5 shrink-0 ${color}`}>{label}</span>;
 }
 
 interface AtividadeRowProps {
   atividade: Atividade;
   projects: Project[];
+  readOnly: boolean;
   editingObjetivo: boolean;
   draft?: ActivityDraft;
   onDraftChange: (id: string, patch: Partial<ActivityDraft>) => void;
-  onUpdate: (id: string, patch: Partial<Atividade>) => void;
-  onRemove: (id: string) => void;
+  onUpdate: (id: string, patch: AtividadePatch) => Promise<void>;
+  onRemove: (id: string) => Promise<void>;
   onInsertDelivery: (projectId: string, text: string) => void;
 }
 
 function AtividadeRow({
   atividade: a,
   projects,
+  readOnly,
   editingObjetivo,
   draft,
   onDraftChange,
@@ -66,9 +72,14 @@ function AtividadeRow({
   onInsertDelivery,
 }: AtividadeRowProps) {
   const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id ?? '');
+  const { showToast } = useToast();
 
-  function setStatus(status: ActivityStatus) {
-    onUpdate(a.id, { status, completedAt: status === 'done' ? todayISO() : undefined });
+  async function setStatus(status: ActivityStatus) {
+    try {
+      await onUpdate(a.id, { status, completedAt: status === 'done' ? todayISO() : undefined });
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Não foi possível atualizar o status.', 'error');
+    }
   }
 
   function handleInsert() {
@@ -77,13 +88,29 @@ function AtividadeRow({
     onInsertDelivery(projectId, a.name);
   }
 
-  const nameEditable = a.kind === 'extra' || editingObjetivo;
-  const nameValue = a.kind === 'extra' ? a.name : (draft?.name ?? a.name);
+  async function handleExtraNameBlur(value: string) {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === a.name) return;
+    try {
+      await onUpdate(a.id, { name: trimmed });
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Não foi possível renomear a atividade.', 'error');
+    }
+  }
+
+  const nameEditable = (a.kind === 'extra' && !readOnly) || editingObjetivo;
+  const nameValue = draft?.name ?? a.name;
   const noteValue = draft?.note ?? a.note ?? '';
   const plannedStartValue = draft?.plannedStart ?? a.plannedStart ?? '';
   const plannedEndValue = draft?.plannedEnd ?? a.plannedEnd ?? '';
   const completedAtValue = draft?.completedAt ?? a.completedAt ?? '';
   const completedAtIsFuture = completedAtValue > todayISO();
+  const raciAccountableValue = draft?.raciAccountableName ?? a.raciAccountableName ?? '';
+  const raciResponsibleValue = draft?.raciResponsibleName ?? a.raciResponsibleName ?? '';
+
+  const replanningStart = editingObjetivo && !!a.plannedStart && plannedStartValue !== a.plannedStart;
+  const replanningEnd = editingObjetivo && !!a.plannedEnd && plannedEndValue !== a.plannedEnd;
+  const needsReason = replanningStart || replanningEnd;
 
   return (
     <div className="flex flex-col gap-1">
@@ -91,9 +118,10 @@ function AtividadeRow({
         {nameEditable ? (
           <input
             value={nameValue}
-            onChange={(e) =>
-              a.kind === 'extra' ? onUpdate(a.id, { name: e.target.value }) : onDraftChange(a.id, { name: e.target.value })
-            }
+            onChange={(e) => onDraftChange(a.id, { name: e.target.value })}
+            onBlur={(e) => {
+              if (a.kind === 'extra' && !editingObjetivo) void handleExtraNameBlur(e.target.value);
+            }}
             placeholder={a.kind === 'extra' ? 'Nome da atividade extra' : 'Nome da atividade'}
             className={`flex-1 min-w-[120px] ${INPUT_CLASS}`}
           />
@@ -105,17 +133,21 @@ function AtividadeRow({
             Extra
           </span>
         )}
-        <select
-          value={a.status}
-          onChange={(e) => setStatus(e.target.value as ActivityStatus)}
-          className={`${INPUT_CLASS} shrink-0`}
-        >
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>
-              {ACTIVITY_STATUS_META[s].label}
-            </option>
-          ))}
-        </select>
+        {readOnly ? (
+          <span className="text-xs text-slate-600 shrink-0">{ACTIVITY_STATUS_META[a.status].label}</span>
+        ) : (
+          <select
+            value={a.status}
+            onChange={(e) => void setStatus(e.target.value as ActivityStatus)}
+            className={`${INPUT_CLASS} shrink-0`}
+          >
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {ACTIVITY_STATUS_META[s].label}
+              </option>
+            ))}
+          </select>
+        )}
         {a.status === 'done' && !editingObjetivo && <AheadBehindBadge atividade={a} />}
         {a.status === 'done' && projects.length > 0 && (
           <>
@@ -142,7 +174,7 @@ function AtividadeRow({
             </button>
           </>
         )}
-        {a.kind === 'extra' && (
+        {a.kind === 'extra' && !readOnly && !editingObjetivo && (
           <button
             type="button"
             onClick={() => onRemove(a.id)}
@@ -153,48 +185,82 @@ function AtividadeRow({
         )}
       </div>
       {editingObjetivo && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] text-slate-400 shrink-0">Prazo:</span>
-          <input
-            type="date"
-            value={plannedStartValue}
-            onChange={(e) => onDraftChange(a.id, { plannedStart: e.target.value })}
-            className={`${INPUT_CLASS} shrink-0`}
-          />
-          <span className="text-[10px] text-slate-400 shrink-0">até</span>
-          <input
-            type="date"
-            value={plannedEndValue}
-            onChange={(e) => onDraftChange(a.id, { plannedEnd: e.target.value })}
-            className={`${INPUT_CLASS} shrink-0`}
-          />
-          {a.status === 'done' && (
-            <>
-              <span className="text-[10px] text-slate-400 shrink-0 ml-1.5">Concluída em:</span>
-              <input
-                type="date"
-                value={completedAtValue}
-                onChange={(e) => onDraftChange(a.id, { completedAt: e.target.value })}
-                className={`${INPUT_CLASS} shrink-0`}
-              />
-              {completedAtIsFuture && (
-                <span title="Data de conclusão no futuro" className="text-amber-500 text-xs shrink-0">
-                  ⚠
-                </span>
-              )}
-            </>
+        <div className="flex flex-col gap-1 rounded-lg bg-slate-50 p-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] text-slate-400 shrink-0">Prazo:</span>
+            <input
+              type="date"
+              value={plannedStartValue}
+              onChange={(e) => onDraftChange(a.id, { plannedStart: e.target.value })}
+              className={`${INPUT_CLASS} shrink-0`}
+            />
+            <span className="text-[10px] text-slate-400 shrink-0">até</span>
+            <input
+              type="date"
+              value={plannedEndValue}
+              onChange={(e) => onDraftChange(a.id, { plannedEnd: e.target.value })}
+              className={`${INPUT_CLASS} shrink-0`}
+            />
+            {a.status === 'done' && (
+              <>
+                <span className="text-[10px] text-slate-400 shrink-0 ml-1.5">Concluída em:</span>
+                <input
+                  type="date"
+                  value={completedAtValue}
+                  onChange={(e) => onDraftChange(a.id, { completedAt: e.target.value })}
+                  className={`${INPUT_CLASS} shrink-0`}
+                />
+                {completedAtIsFuture && (
+                  <span title="Data de conclusão no futuro" className="text-amber-500 text-xs shrink-0">
+                    ⚠
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+          {needsReason && (
+            <input
+              value={draft?.reason ?? ''}
+              onChange={(e) => onDraftChange(a.id, { reason: e.target.value })}
+              placeholder="Motivo da mudança (obrigatório ao replanejar) — ex: Dependência externa"
+              className={`w-full ${INPUT_CLASS} ${!draft?.reason?.trim() ? 'border-amber-400' : ''}`}
+            />
           )}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] text-slate-400 shrink-0">Responsável (Accountable):</span>
+            <input
+              value={raciAccountableValue}
+              onChange={(e) => onDraftChange(a.id, { raciAccountableName: e.target.value })}
+              placeholder="Nome"
+              className={`flex-1 min-w-[100px] ${INPUT_CLASS}`}
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] text-slate-400 shrink-0">Executor (Responsible):</span>
+            <input
+              value={raciResponsibleValue}
+              onChange={(e) => onDraftChange(a.id, { raciResponsibleName: e.target.value })}
+              placeholder="Nome"
+              className={`flex-1 min-w-[100px] ${INPUT_CLASS}`}
+            />
+          </div>
+          <input
+            value={noteValue}
+            onChange={(e) => onDraftChange(a.id, { note: e.target.value })}
+            placeholder="Anotação (opcional)"
+            className={INPUT_CLASS}
+          />
         </div>
       )}
-      {editingObjetivo ? (
-        <input
-          value={noteValue}
-          onChange={(e) => onDraftChange(a.id, { note: e.target.value })}
-          placeholder="Anotação (opcional)"
-          className={`ml-0 ${INPUT_CLASS}`}
-        />
-      ) : (
-        a.note?.trim() && <p className="text-[10px] text-slate-400 italic leading-snug">{a.note}</p>
+      {!editingObjetivo && a.note?.trim() && (
+        <p className="text-[10px] text-slate-400 italic leading-snug">{a.note}</p>
+      )}
+      {!editingObjetivo && (a.raciAccountableName?.trim() || a.raciResponsibleName?.trim()) && (
+        <p className="text-[10px] text-slate-400 leading-snug">
+          {a.raciAccountableName?.trim() && <>Responsável: {a.raciAccountableName}</>}
+          {a.raciAccountableName?.trim() && a.raciResponsibleName?.trim() && ' · '}
+          {a.raciResponsibleName?.trim() && <>Executor: {a.raciResponsibleName}</>}
+        </p>
       )}
     </div>
   );
@@ -204,10 +270,11 @@ interface ObjetivoCardProps {
   objetivo: Objetivo;
   atividades: Atividade[];
   projects: Project[];
-  onUpdateObjetivo: (objetivo: Objetivo) => void;
-  onUpdateAtividade: (id: string, patch: Partial<Atividade>) => void;
-  onAddExtra: () => void;
-  onRemoveExtra: (id: string) => void;
+  readOnly: boolean;
+  onUpdateObjetivo: (id: ObjetivoId, patch: Partial<Objetivo>) => Promise<void>;
+  onUpdateAtividade: (id: string, patch: AtividadePatch) => Promise<void>;
+  onAddExtra: (objetivoId: ObjetivoId, name: string) => Promise<void>;
+  onRemoveExtra: (id: string) => Promise<void>;
   onInsertDelivery: (projectId: string, text: string) => void;
 }
 
@@ -215,19 +282,24 @@ function ObjetivoCard({
   objetivo,
   atividades,
   projects,
+  readOnly,
   onUpdateObjetivo,
   onUpdateAtividade,
   onAddExtra,
   onRemoveExtra,
   onInsertDelivery,
 }: ObjetivoCardProps) {
+  const { showToast } = useToast();
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [draftName, setDraftName] = useState(objetivo.name);
   const [draftEntregaLabel, setDraftEntregaLabel] = useState(objetivo.entregaLabel);
   const [draftPeriodStart, setDraftPeriodStart] = useState(objetivo.periodStart);
   const [draftPeriodEnd, setDraftPeriodEnd] = useState(objetivo.periodEnd);
   const [draftActivities, setDraftActivities] = useState<Record<string, ActivityDraft>>({});
   const [error, setError] = useState('');
+  const [addingExtra, setAddingExtra] = useState(false);
+  const [newExtraName, setNewExtraName] = useState('');
 
   const items = atividadesForObjetivo(objetivo.id, atividades);
   const progress = computeObjetivoProgress(objetivo.id, atividades);
@@ -250,7 +322,7 @@ function ObjetivoCard({
     setEditing(false);
   }
 
-  function saveEditing() {
+  async function saveEditing() {
     const name = draftName.trim();
     const entregaLabel = draftEntregaLabel.trim();
     if (!name) {
@@ -276,48 +348,79 @@ function ObjetivoCard({
     }
     for (const a of items) {
       const draft = draftActivities[a.id];
-      const plannedStart = draft?.plannedStart ?? a.plannedStart;
-      const plannedEnd = draft?.plannedEnd ?? a.plannedEnd;
+      if (!draft) continue;
+      const plannedStart = draft.plannedStart ?? a.plannedStart;
+      const plannedEnd = draft.plannedEnd ?? a.plannedEnd;
       if (plannedStart && plannedEnd && !(plannedStart < plannedEnd)) {
         setError(`"${a.name || 'Atividade'}": a data de início planejada deve ser anterior à data de fim planejada.`);
         return;
       }
+      const replanning =
+        (!!a.plannedStart && draft.plannedStart !== undefined && draft.plannedStart !== a.plannedStart) ||
+        (!!a.plannedEnd && draft.plannedEnd !== undefined && draft.plannedEnd !== a.plannedEnd);
+      if (replanning && !draft.reason?.trim()) {
+        setError(`"${a.name || 'Atividade'}": informe o motivo da mudança para replanejar a data.`);
+        return;
+      }
     }
 
-    const totalWeeks = computeTotalWeeks(draftPeriodStart, draftPeriodEnd);
-    const periodLabel = formatObjetivoPeriodLabel(draftPeriodStart, draftPeriodEnd);
-    onUpdateObjetivo({
-      ...objetivo,
-      name,
-      entregaLabel,
-      periodStart: draftPeriodStart,
-      periodEnd: draftPeriodEnd,
-      periodLabel,
-      totalWeeks,
-    });
-
-    for (const a of items) {
-      const draft = draftActivities[a.id];
-      if (!draft) continue;
-      const patch: Partial<Atividade> = {};
-      if (draft.name !== undefined && draft.name.trim() !== a.name) patch.name = draft.name.trim();
-      if (draft.note !== undefined && draft.note !== (a.note ?? '')) patch.note = draft.note || undefined;
-      if (draft.plannedStart !== undefined && draft.plannedStart !== (a.plannedStart ?? ''))
-        patch.plannedStart = draft.plannedStart || undefined;
-      if (draft.plannedEnd !== undefined && draft.plannedEnd !== (a.plannedEnd ?? ''))
-        patch.plannedEnd = draft.plannedEnd || undefined;
-      if (draft.completedAt !== undefined && draft.completedAt !== (a.completedAt ?? ''))
-        patch.completedAt = draft.completedAt || undefined;
-      if (Object.keys(patch).length > 0) onUpdateAtividade(a.id, patch);
-    }
-
-    setDraftActivities({});
+    setSaving(true);
     setError('');
-    setEditing(false);
+    try {
+      const datesChanged = draftPeriodStart !== objetivo.periodStart || draftPeriodEnd !== objetivo.periodEnd;
+      const objetivoPatch: Partial<Objetivo> = { name, entregaLabel };
+      if (datesChanged) {
+        objetivoPatch.periodStart = draftPeriodStart;
+        objetivoPatch.periodEnd = draftPeriodEnd;
+        objetivoPatch.totalWeeks = computeTotalWeeks(draftPeriodStart, draftPeriodEnd);
+        objetivoPatch.periodLabel = formatObjetivoPeriodLabel(draftPeriodStart, draftPeriodEnd);
+      }
+      await onUpdateObjetivo(objetivo.id, objetivoPatch);
+
+      for (const a of items) {
+        const draft = draftActivities[a.id];
+        if (!draft) continue;
+        const patch: AtividadePatch = {};
+        if (draft.name !== undefined && draft.name.trim() !== a.name) patch.name = draft.name.trim();
+        if (draft.note !== undefined && draft.note !== (a.note ?? '')) patch.note = draft.note || null;
+        if (draft.plannedStart !== undefined && draft.plannedStart !== (a.plannedStart ?? ''))
+          patch.plannedStart = draft.plannedStart || null;
+        if (draft.plannedEnd !== undefined && draft.plannedEnd !== (a.plannedEnd ?? ''))
+          patch.plannedEnd = draft.plannedEnd || null;
+        if (draft.completedAt !== undefined && draft.completedAt !== (a.completedAt ?? ''))
+          patch.completedAt = draft.completedAt || null;
+        if (draft.raciAccountableName !== undefined && draft.raciAccountableName !== (a.raciAccountableName ?? ''))
+          patch.raciAccountableName = draft.raciAccountableName || null;
+        if (draft.raciResponsibleName !== undefined && draft.raciResponsibleName !== (a.raciResponsibleName ?? ''))
+          patch.raciResponsibleName = draft.raciResponsibleName || null;
+        if (draft.reason?.trim()) patch.reason = draft.reason.trim();
+        if (Object.keys(patch).length > 0) await onUpdateAtividade(a.id, patch);
+      }
+
+      setDraftActivities({});
+      setEditing(false);
+      showToast('Alterações salvas.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível salvar as alterações.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   function updateDraftActivity(id: string, patch: Partial<ActivityDraft>) {
     setDraftActivities((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+  }
+
+  async function handleAddExtra() {
+    const name = newExtraName.trim();
+    if (!name) return;
+    try {
+      await onAddExtra(objetivo.id, name);
+      setNewExtraName('');
+      setAddingExtra(false);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Não foi possível adicionar a atividade.', 'error');
+    }
   }
 
   return (
@@ -368,7 +471,7 @@ function ObjetivoCard({
           <span className="text-xs font-medium text-slate-500 bg-slate-100 rounded-full px-2.5 py-1">
             Semana {week} de {objetivo.totalWeeks}
           </span>
-          {!editing && (
+          {!editing && !readOnly && (
             <button
               type="button"
               onClick={startEditing}
@@ -405,21 +508,26 @@ function ObjetivoCard({
         </div>
       </div>
 
-      <div className="space-y-2">
-        {items.map((a) => (
-          <AtividadeRow
-            key={a.id}
-            atividade={a}
-            projects={projects}
-            editingObjetivo={editing}
-            draft={draftActivities[a.id]}
-            onDraftChange={updateDraftActivity}
-            onUpdate={onUpdateAtividade}
-            onRemove={onRemoveExtra}
-            onInsertDelivery={onInsertDelivery}
-          />
-        ))}
-      </div>
+      {items.length === 0 ? (
+        <p className="text-xs text-slate-400 italic">Nenhuma atividade cadastrada ainda.</p>
+      ) : (
+        <div className="space-y-2">
+          {items.map((a) => (
+            <AtividadeRow
+              key={a.id}
+              atividade={a}
+              projects={projects}
+              readOnly={readOnly}
+              editingObjetivo={editing}
+              draft={draftActivities[a.id]}
+              onDraftChange={updateDraftActivity}
+              onUpdate={onUpdateAtividade}
+              onRemove={onRemoveExtra}
+              onInsertDelivery={onInsertDelivery}
+            />
+          ))}
+        </div>
+      )}
 
       {editing && error && <p className="text-[11px] font-medium text-red-600">{error}</p>}
 
@@ -427,27 +535,56 @@ function ObjetivoCard({
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={saveEditing}
-            className="text-xs font-medium bg-slate-900 text-white rounded-lg px-3 py-1.5 hover:bg-slate-800 transition-colors"
+            onClick={() => void saveEditing()}
+            disabled={saving}
+            className="text-xs font-medium bg-slate-900 text-white rounded-lg px-3 py-1.5 hover:bg-slate-800 transition-colors disabled:opacity-50"
           >
-            Salvar
+            {saving ? 'Salvando…' : 'Salvar'}
           </button>
           <button
             type="button"
             onClick={cancelEditing}
-            className="text-xs font-medium text-slate-500 hover:text-slate-900 border border-slate-300 rounded-lg px-3 py-1.5 hover:bg-slate-50 transition-colors"
+            disabled={saving}
+            className="text-xs font-medium text-slate-500 hover:text-slate-900 border border-slate-300 rounded-lg px-3 py-1.5 hover:bg-slate-50 transition-colors disabled:opacity-50"
           >
             Cancelar
           </button>
         </div>
       ) : (
-        <button
-          type="button"
-          onClick={onAddExtra}
-          className="text-xs font-medium text-slate-600 hover:text-slate-900 border border-dashed border-slate-300 rounded-lg px-3 py-1.5 hover:bg-slate-50 transition-colors w-full"
-        >
-          + Adicionar atividade extra
-        </button>
+        !readOnly &&
+        (addingExtra ? (
+          <div className="flex gap-2">
+            <input
+              autoFocus
+              value={newExtraName}
+              onChange={(e) => setNewExtraName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleAddExtra();
+                if (e.key === 'Escape') {
+                  setAddingExtra(false);
+                  setNewExtraName('');
+                }
+              }}
+              placeholder="Nome da atividade extra"
+              className={`flex-1 ${INPUT_CLASS}`}
+            />
+            <button
+              type="button"
+              onClick={() => void handleAddExtra()}
+              className="text-xs font-medium bg-slate-900 text-white rounded-lg px-3 py-1.5 hover:bg-slate-800 transition-colors"
+            >
+              Adicionar
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setAddingExtra(true)}
+            className="text-xs font-medium text-slate-600 hover:text-slate-900 border border-dashed border-slate-300 rounded-lg px-3 py-1.5 hover:bg-slate-50 transition-colors w-full"
+          >
+            + Adicionar atividade extra
+          </button>
+        ))
       )}
     </div>
   );
@@ -455,26 +592,17 @@ function ObjetivoCard({
 
 export default function RoadmapEditor({
   objetivos,
-  onObjetivosChange,
   atividades,
-  onChange,
   projects,
+  readOnly,
   onInsertDelivery,
+  onUpdateObjetivo,
+  onUpdateAtividade,
+  onAddExtra,
+  onRemoveExtra,
 }: Props) {
-  function update(id: string, patch: Partial<Atividade>) {
-    onChange(atividades.map((a) => (a.id === id ? { ...a, ...patch } : a)));
-  }
-
-  function addExtra(objetivoId: Atividade['objetivoId']) {
-    onChange([...atividades, blankAtividade(objetivoId, 'extra')]);
-  }
-
-  function removeExtra(id: string) {
-    onChange(atividades.filter((a) => a.id !== id));
-  }
-
-  function updateObjetivo(updated: Objetivo) {
-    onObjetivosChange(objetivos.map((o) => (o.id === updated.id ? updated : o)));
+  if (objetivos.length === 0) {
+    return <p className="text-sm text-slate-400 italic">Carregando roadmap…</p>;
   }
 
   return (
@@ -485,10 +613,11 @@ export default function RoadmapEditor({
           objetivo={objetivo}
           atividades={atividades}
           projects={projects}
-          onUpdateObjetivo={updateObjetivo}
-          onUpdateAtividade={update}
-          onAddExtra={() => addExtra(objetivo.id)}
-          onRemoveExtra={removeExtra}
+          readOnly={readOnly}
+          onUpdateObjetivo={onUpdateObjetivo}
+          onUpdateAtividade={onUpdateAtividade}
+          onAddExtra={onAddExtra}
+          onRemoveExtra={onRemoveExtra}
           onInsertDelivery={onInsertDelivery}
         />
       ))}

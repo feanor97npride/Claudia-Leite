@@ -1,38 +1,26 @@
 import { useState } from 'react';
-import { getProfile, saveProfile, setCurrentUserId, slugifyUser } from '../lib/storage';
-import type { UserProfile } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
-interface Props {
-  onLogin: (profile: UserProfile) => void;
-}
-
-export default function Login({ onLogin }: Props) {
-  const [name, setName] = useState('');
-  const [area, setArea] = useState('Sistemas (TI)');
+export default function Login() {
+  const { login } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setError('Informe seu nome para continuar.');
-      return;
+    setError('');
+    setSubmitting(true);
+    try {
+      await login(email.trim(), password);
+    } catch (err) {
+      // Deliberately generic — matches the backend's message, never reveals
+      // whether the e-mail exists or the password was wrong.
+      setError(err instanceof Error ? err.message : 'Usuário ou senha inválidos.');
+    } finally {
+      setSubmitting(false);
     }
-    const userId = slugifyUser(trimmed);
-    if (!userId) {
-      setError('Nome inválido.');
-      return;
-    }
-    const existing = getProfile(userId);
-    const profile: UserProfile = existing ?? {
-      userId,
-      displayName: trimmed,
-      area: area.trim() || 'Sistemas (TI)',
-      responsible: trimmed,
-    };
-    saveProfile(profile);
-    setCurrentUserId(userId);
-    onLogin(profile);
   }
 
   return (
@@ -45,33 +33,48 @@ export default function Login({ onLogin }: Props) {
           <h1 className="text-lg font-semibold text-slate-900">Status Report Semanal</h1>
         </div>
         <p className="text-sm text-slate-500 mb-6">
-          Acompanhamento de atividades da área de Sistemas (TI). Seus relatórios ficam salvos neste navegador.
+          Acompanhamento de atividades da área de Sistemas (TI). Entre com seu e-mail e senha.
         </p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Seu nome</label>
+            <label htmlFor="login-email" className="block text-xs font-medium text-slate-600 mb-1">
+              E-mail
+            </label>
             <input
+              id="login-email"
+              type="email"
               autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="ex: Marcos Silva"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="voce@empresa.com"
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-400"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Área</label>
+            <label htmlFor="login-password" className="block text-xs font-medium text-slate-600 mb-1">
+              Senha
+            </label>
             <input
-              value={area}
-              onChange={(e) => setArea(e.target.value)}
+              id="login-password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-400"
             />
           </div>
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && (
+            <p role="alert" className="text-xs text-red-600">
+              {error}
+            </p>
+          )}
           <button
             type="submit"
-            className="w-full bg-slate-900 text-white rounded-lg py-2 text-sm font-medium hover:bg-slate-800 transition-colors"
+            disabled={submitting}
+            className="w-full bg-slate-900 text-white rounded-lg py-2 text-sm font-medium hover:bg-slate-800 transition-colors disabled:opacity-50"
           >
-            Entrar
+            {submitting ? 'Entrando…' : 'Entrar'}
           </button>
         </form>
       </div>

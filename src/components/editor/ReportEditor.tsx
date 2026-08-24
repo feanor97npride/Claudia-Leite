@@ -1,4 +1,4 @@
-import type { Atividade, Objetivo, Report } from '../../types';
+import type { Atividade, AtividadePatch, Objetivo, ObjetivoId, Report } from '../../types';
 import { blankProject } from '../../lib/factory';
 import { formatPeriodLabel } from '../../utils/date';
 import ProjectCard from './ProjectCard';
@@ -9,18 +9,24 @@ interface Props {
   report: Report;
   onChange: (report: Report) => void;
   atividades: Atividade[];
-  onAtividadesChange: (atividades: Atividade[]) => void;
   objetivos: Objetivo[];
-  onObjetivosChange: (objetivos: Objetivo[]) => void;
+  roadmapReadOnly: boolean;
+  onUpdateObjetivo: (id: ObjetivoId, patch: Partial<Objetivo>) => Promise<void>;
+  onUpdateAtividade: (id: string, patch: AtividadePatch) => Promise<void>;
+  onAddExtraAtividade: (objetivoId: ObjetivoId, name: string) => Promise<void>;
+  onRemoveExtraAtividade: (id: string) => Promise<void>;
 }
 
 export default function ReportEditor({
   report,
   onChange,
   atividades,
-  onAtividadesChange,
   objetivos,
-  onObjetivosChange,
+  roadmapReadOnly,
+  onUpdateObjetivo,
+  onUpdateAtividade,
+  onAddExtraAtividade,
+  onRemoveExtraAtividade,
 }: Props) {
   function set<K extends keyof Report>(key: K, value: Report[K]) {
     onChange({ ...report, [key]: value });
@@ -151,11 +157,14 @@ export default function ReportEditor({
         </h2>
         <RoadmapEditor
           objetivos={objetivos}
-          onObjetivosChange={onObjetivosChange}
           atividades={atividades}
-          onChange={onAtividadesChange}
           projects={report.projects}
+          readOnly={roadmapReadOnly}
           onInsertDelivery={insertDeliveryFromActivity}
+          onUpdateObjetivo={onUpdateObjetivo}
+          onUpdateAtividade={onUpdateAtividade}
+          onAddExtra={onAddExtraAtividade}
+          onRemoveExtra={onRemoveExtraAtividade}
         />
       </section>
 

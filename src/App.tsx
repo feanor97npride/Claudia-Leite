@@ -1,92 +1,99 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Atividade, Objetivo, Report, UserProfile } from './types';
-import {
-  clearCurrentUser,
-  deleteReport,
-  getCurrentUserId,
-  getProfile,
-  getReports,
-  saveAtividades,
-  saveObjetivos,
-  saveReport,
-} from './lib/storage';
+import type { Atividade, AtividadePatch, AuthedUser, Objetivo, ObjetivoId, Report, UserProfile } from './types';
+import { deleteReport, getReports, saveReport } from './lib/storage';
 import { blankReport, duplicateForNextWeek } from './lib/factory';
-import { buildRoadmapSnapshot, seedAtividadesIfNeeded, seedObjetivosIfNeeded } from './lib/roadmap';
+import { buildRoadmapSnapshot } from './lib/roadmap';
+import {
+  createExtraAtividadeApi,
+  deleteExtraAtividadeApi,
+  fetchAtividades,
+  fetchObjetivos,
+  updateAtividadeApi,
+  updateObjetivoApi,
+} from './lib/api';
+import { useAuth } from './contexts/AuthContext';
+import { useToast } from './contexts/ToastContext';
 import Login from './components/Login';
+import ChangePasswordModal from './components/ChangePasswordModal';
 import ReportEditor from './components/editor/ReportEditor';
 import SnapshotView from './components/snapshot/SnapshotView';
 import HistoryPanel from './components/history/HistoryPanel';
 
 type View = 'editor' | 'snapshot';
 
+const ROLE_LABEL: Record<AuthedUser['role'], string> = { admin: 'Admin', viewer: 'Visualizador' };
+
+function deriveProfile(user: AuthedUser): UserProfile {
+  return { userId: user.id, displayName: user.displayName, area: 'Sistemas (TI)', responsible: user.displayName };
+}
+
 export default function App() {
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const { user, loading: authLoading, logout } = useAuth();
+  const { showToast } = useToast();
+
   const [reports, setReports] = useState<Report[]>([]);
   const [atividades, setAtividades] = useState<Atividade[]>([]);
   const [objetivos, setObjetivos] = useState<Objetivo[]>([]);
+  const [roadmapLoading, setRoadmapLoading] = useState(true);
   const [draft, setDraft] = useState<Report | null>(null);
   const [view, setView] = useState<View>('editor');
   const [exporting, setExporting] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const snapshotRef = useRef<HTMLDivElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Bootstrap from localStorage on load
   useEffect(() => {
-    const userId = getCurrentUserId();
-    if (!userId) return;
-    const p = getProfile(userId);
-    if (!p) return;
-    const existing = getReports(userId);
-    setProfile(p);
+    if (!user || user.mustChangePassword) return;
+    const profile = deriveProfile(user);
+    const existing = getReports(user.id);
     setReports(existing);
-    setAtividades(seedAtividadesIfNeeded(userId));
-    setObjetivos(seedObjetivosIfNeeded(userId));
     if (existing.length > 0) {
       setDraft(existing[0]);
     } else {
-      const fresh = blankReport(p);
+      const fresh = blankReport(profile);
       saveReport(fresh);
       setDraft(fresh);
       setReports([fresh]);
     }
-  }, []);
 
-  function handleLogin(p: UserProfile) {
-    setProfile(p);
-    const existing = getReports(p.userId);
-    setAtividades(seedAtividadesIfNeeded(p.userId));
-    setObjetivos(seedObjetivosIfNeeded(p.userId));
-    if (existing.length > 0) {
-      setReports(existing);
-      setDraft(existing[0]);
-    } else {
-      const fresh = blankReport(p);
-      saveReport(fresh);
-      setReports([fresh]);
-      setDraft(fresh);
-    }
-  }
+    setRoadmapLoading(true);
+    Promise.all([fetchObjetivos(), fetchAtividades()])
+      .then(([objs, atvs]) => {
+        setObjetivos(objs);
+        setAtividades(atvs);
+      })
+      .catch((err) => showToast(err instanceof Error ? err.message : 'Não foi possível carregar o roadmap.', 'error'))
+      .finally(() => setRoadmapLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.mustChangePassword]);
 
-  function handleLogout() {
-    clearCurrentUser();
-    setProfile(null);
+  async function handleLogout() {
+    await logout();
     setReports([]);
-    setAtividades([]);
     setObjetivos([]);
+    setAtividades([]);
     setDraft(null);
     setView('editor');
   }
 
-  function updateAtividades(next: Atividade[]) {
-    if (!profile) return;
-    setAtividades(next);
-    saveAtividades(profile.userId, next);
+  async function handleUpdateObjetivo(id: ObjetivoId, patch: Partial<Objetivo>) {
+    const updated = await updateObjetivoApi(id, patch);
+    setObjetivos((prev) => prev.map((o) => (o.id === id ? updated : o)));
   }
 
-  function updateObjetivos(next: Objetivo[]) {
-    if (!profile) return;
-    setObjetivos(next);
-    saveObjetivos(profile.userId, next);
+  async function handleUpdateAtividade(id: string, patch: AtividadePatch) {
+    const updated = await updateAtividadeApi(id, patch);
+    setAtividades((prev) => prev.map((a) => (a.id === id ? updated : a)));
+  }
+
+  async function handleAddExtraAtividade(objetivoId: ObjetivoId, name: string) {
+    const created = await createExtraAtividadeApi(objetivoId, name);
+    setAtividades((prev) => [...prev, created]);
+  }
+
+  async function handleRemoveExtraAtividade(id: string) {
+    await deleteExtraAtividadeApi(id);
+    setAtividades((prev) => prev.filter((a) => a.id !== id));
   }
 
   function updateDraft(next: Report) {
@@ -106,21 +113,21 @@ export default function App() {
   }
 
   function handleGenerateSnapshot() {
-    if (!draft || !profile) return;
+    if (!draft || !user) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     const withSnapshot = { ...draft, roadmapSnapshot: buildRoadmapSnapshot(atividades, draft.weekStart, objetivos) };
     saveReport(withSnapshot);
     setDraft(withSnapshot);
-    setReports(getReports(profile.userId));
+    setReports(getReports(user.id));
     setView('snapshot');
   }
 
   function handleNewWeek() {
-    if (!profile) return;
+    if (!user) return;
     const base = draft ?? reports[0];
-    const fresh = base ? duplicateForNextWeek(base) : blankReport(profile);
+    const fresh = base ? duplicateForNextWeek(base) : blankReport(deriveProfile(user));
     saveReport(fresh);
-    setReports(getReports(profile.userId));
+    setReports(getReports(user.id));
     setDraft(fresh);
     setView('editor');
   }
@@ -133,15 +140,15 @@ export default function App() {
   function handleDuplicateReport(report: Report) {
     const fresh = duplicateForNextWeek(report);
     saveReport(fresh);
-    if (profile) setReports(getReports(profile.userId));
+    if (user) setReports(getReports(user.id));
     setDraft(fresh);
     setView('editor');
   }
 
   function handleDeleteReport(report: Report) {
-    if (!profile) return;
-    deleteReport(profile.userId, report.id);
-    const remaining = getReports(profile.userId);
+    if (!user) return;
+    deleteReport(user.id, report.id);
+    const remaining = getReports(user.id);
     setReports(remaining);
     if (draft?.id === report.id) {
       setDraft(remaining[0] ?? null);
@@ -164,8 +171,16 @@ export default function App() {
 
   const editorDisabled = useMemo(() => view === 'snapshot', [view]);
 
-  if (!profile) {
-    return <Login onLogin={handleLogin} />;
+  if (authLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-100 text-sm text-slate-400">Carregando…</div>;
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
+  if (user.mustChangePassword) {
+    return <ChangePasswordModal />;
   }
 
   return (
@@ -178,13 +193,24 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-sm font-semibold text-slate-900 leading-none">Status Report Semanal</h1>
-              <p className="text-[11px] text-slate-400">{profile.area}</p>
+              <p className="text-[11px] text-slate-400">Sistemas (TI)</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-500 hidden sm:inline">Olá, {profile.displayName}</span>
+            <span className="text-xs text-slate-500 hidden sm:inline">
+              Olá, {user.displayName}{' '}
+              <span className="text-slate-400">
+                ({ROLE_LABEL[user.role]})
+              </span>
+            </span>
             <button
-              onClick={handleLogout}
+              onClick={() => setShowChangePassword(true)}
+              className="text-xs font-medium text-slate-500 hover:text-slate-900 border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50"
+            >
+              Trocar senha
+            </button>
+            <button
+              onClick={() => void handleLogout()}
               className="text-xs font-medium text-slate-500 hover:text-slate-900 border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50"
             >
               Sair
@@ -192,6 +218,8 @@ export default function App() {
           </div>
         </div>
       </header>
+
+      {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
 
       <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
         <div>
@@ -252,14 +280,21 @@ export default function App() {
 
           {view === 'editor' && draft && (
             <fieldset disabled={editorDisabled}>
-              <ReportEditor
-                report={draft}
-                onChange={updateDraft}
-                atividades={atividades}
-                onAtividadesChange={updateAtividades}
-                objetivos={objetivos}
-                onObjetivosChange={updateObjetivos}
-              />
+              {roadmapLoading ? (
+                <p className="text-sm text-slate-400 italic mb-4">Carregando roadmap…</p>
+              ) : (
+                <ReportEditor
+                  report={draft}
+                  onChange={updateDraft}
+                  atividades={atividades}
+                  objetivos={objetivos}
+                  roadmapReadOnly={user.role === 'viewer'}
+                  onUpdateObjetivo={handleUpdateObjetivo}
+                  onUpdateAtividade={handleUpdateAtividade}
+                  onAddExtraAtividade={handleAddExtraAtividade}
+                  onRemoveExtraAtividade={handleRemoveExtraAtividade}
+                />
+              )}
             </fieldset>
           )}
 

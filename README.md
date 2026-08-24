@@ -53,7 +53,8 @@ acompanhamento das atividades da área de Sistemas (TI).
 - Histórico: cada semana gerada fica salva e pode ser reaberta ou duplicada
   como ponto de partida para a semana seguinte (os avanços antecipados viram
   as entregas da nova semana).
-- Login simples por nome para separar os relatórios de cada usuário.
+- Login com e-mail/senha (autenticado no servidor); os relatórios semanais
+  continuam separados por usuário.
 
 ## Persistência de dados
 
@@ -95,12 +96,28 @@ auditoria que o próprio usuário não possa editar.
 - Campos RACI descritivos por atividade (Responsável/Executor), independentes
   da role de acesso ao sistema.
 
-**Ainda não integrado ao front-end** (próxima etapa): a tela de login, o
-editor de roadmap e o snapshot ainda leem/escrevem via `localStorage`, não
-pela API acima. O backend já está pronto e testado ponta a ponta; falta
-trocar a fiação do `RoadmapEditor`/`SnapshotView`/`App.tsx` para consumir
-esses endpoints, adicionar a tela de login com senha, e expor no front-end o
-histórico de alterações, os indicadores de governança e os campos RACI.
+**Front-end integrado à API:**
+- Tela de login (e-mail/senha) e troca de senha obrigatória no primeiro
+  acesso (ou voluntária, a qualquer momento, pelo botão "Trocar senha" no
+  cabeçalho) — nenhuma senha, hash ou não, chega a trafegar de volta do
+  servidor em nenhuma resposta.
+- `RoadmapEditor`/`App.tsx` carregam e gravam Objetivos/Atividades pela API
+  (`src/lib/api.ts`), não mais do `localStorage`; erros e sucessos aparecem
+  como toasts (`ToastContext`), e cada ação de salvar mostra estado de
+  carregamento.
+- Para o papel **Visualizador**, todos os controles de edição/exclusão do
+  roadmap são ocultados na interface (além do bloqueio no servidor) — a tela
+  mostra os mesmos dados em modo somente-leitura.
+- Campos RACI (Responsável/Executor) e o motivo de replanejamento aparecem
+  no modo de edição do Objetivo/Atividade, com a mesma validação do servidor
+  replicada no cliente para feedback imediato antes do round-trip de rede.
+
+**Ainda não exposto no front-end** (próxima etapa): o painel "Histórico de
+Alterações" (trilha de auditoria por Objetivo/Atividade — o endpoint
+`/api/audit-log` já existe e é consumido apenas internamente para o contador
+de replanejamentos) e o bloco de "Indicadores de Governança" no relatório
+semanal (% no prazo/atrasado/adiantado, nº de replanejamentos, atividades
+extras).
 
 ### Configuração
 
