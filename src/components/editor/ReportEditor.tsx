@@ -43,6 +43,18 @@ export default function ReportEditor({ report, onChange, atividades, onAtividade
     set('projects', projects);
   }
 
+  function insertDeliveryFromActivity(projectId: string, activityName: string) {
+    const index = report.projects.findIndex((p) => p.id === projectId);
+    if (index === -1) return;
+    const project = report.projects[index];
+    const alreadyPresent = project.deliveries
+      .split('\n')
+      .some((line) => line.trim() === activityName.trim());
+    if (alreadyPresent) return;
+    const deliveries = project.deliveries ? `${project.deliveries}\n${activityName}` : activityName;
+    updateProject(index, { ...project, deliveries });
+  }
+
   return (
     <div className="space-y-5 pb-24">
       <section className="rounded-xl border border-slate-200 bg-white p-4">
@@ -128,7 +140,12 @@ export default function ReportEditor({ report, onChange, atividades, onAtividade
         <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
           Roadmap — Estruturação da Área de Sistemas
         </h2>
-        <RoadmapEditor atividades={atividades} onChange={onAtividadesChange} />
+        <RoadmapEditor
+          atividades={atividades}
+          onChange={onAtividadesChange}
+          projects={report.projects}
+          onInsertDelivery={insertDeliveryFromActivity}
+        />
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4">
