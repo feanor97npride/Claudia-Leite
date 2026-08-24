@@ -1,6 +1,6 @@
-import type { Atividade, ActivityKind, ObjetivoId, RoadmapSnapshot } from '../types';
-import { newId, getAtividades, saveAtividades } from './storage';
-import { OBJETIVOS, SEED_ATIVIDADES } from './roadmapSeed';
+import type { Atividade, ActivityKind, Objetivo, ObjetivoId, RoadmapSnapshot } from '../types';
+import { newId, getAtividades, saveAtividades, getObjetivos, saveObjetivos } from './storage';
+import { DEFAULT_OBJETIVOS, SEED_ATIVIDADES } from './roadmapSeed';
 import { currentWeekOfObjetivo, isWithinWeek } from '../utils/date';
 
 export function blankAtividade(objetivoId: ObjetivoId, kind: ActivityKind = 'extra', name = ''): Atividade {
@@ -11,7 +11,7 @@ export function blankAtividade(objetivoId: ObjetivoId, kind: ActivityKind = 'ext
 export function seedAtividadesIfNeeded(userId: string): Atividade[] {
   const existing = getAtividades(userId);
   if (existing.length > 0) return existing;
-  const seeded = OBJETIVOS.flatMap((obj) =>
+  const seeded = DEFAULT_OBJETIVOS.flatMap((obj) =>
     SEED_ATIVIDADES[obj.id].map((name) => ({
       id: newId(),
       name,
@@ -22,6 +22,14 @@ export function seedAtividadesIfNeeded(userId: string): Atividade[] {
   );
   saveAtividades(userId, seeded);
   return seeded;
+}
+
+/** Idempotent: seeds the editable objetivo catalog once per user, on first load only. */
+export function seedObjetivosIfNeeded(userId: string): Objetivo[] {
+  const existing = getObjetivos(userId);
+  if (existing.length > 0) return existing;
+  saveObjetivos(userId, DEFAULT_OBJETIVOS);
+  return DEFAULT_OBJETIVOS;
 }
 
 export function atividadesForObjetivo(objetivoId: ObjetivoId, atividades: Atividade[]): Atividade[] {
@@ -50,10 +58,14 @@ function completedInWeek(objetivoId: ObjetivoId, atividades: Atividade[], weekSt
 }
 
 /** Builds the frozen roadmap snapshot for a report, anchored to that report's own week. */
-export function buildRoadmapSnapshot(atividades: Atividade[], weekStart: string): RoadmapSnapshot {
+export function buildRoadmapSnapshot(atividades: Atividade[], weekStart: string, objetivos: Objetivo[]): RoadmapSnapshot {
   const referenceDate = new Date(weekStart + 'T00:00:00');
-  return OBJETIVOS.map((obj) => ({
+  return objetivos.map((obj) => ({
     objetivoId: obj.id,
+    name: obj.name,
+    entregaLabel: obj.entregaLabel,
+    periodLabel: obj.periodLabel,
+    totalWeeks: obj.totalWeeks,
     progress: computeObjetivoProgress(obj.id, atividades),
     weekOfQuarter: currentWeekOfObjetivo(obj, referenceDate),
     completedPlanned: completedInWeek(obj.id, atividades, weekStart, 'planned'),

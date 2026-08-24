@@ -1,9 +1,10 @@
-import type { Atividade, Report, UserProfile } from '../types';
+import type { Atividade, Objetivo, Report, UserProfile } from '../types';
 
 const CURRENT_USER_KEY = 'wsr:currentUser';
 const PROFILE_PREFIX = 'wsr:profile:';
 const REPORTS_PREFIX = 'wsr:reports:';
 const ATIVIDADES_PREFIX = 'wsr:atividades:';
+const OBJETIVOS_PREFIX = 'wsr:objetivos:';
 
 export function slugifyUser(name: string): string {
   return name
@@ -77,6 +78,20 @@ export function getAtividades(userId: string): Atividade[] {
 
 export function saveAtividades(userId: string, atividades: Atividade[]) {
   localStorage.setItem(ATIVIDADES_PREFIX + userId, JSON.stringify(atividades));
+}
+
+export function getObjetivos(userId: string): Objetivo[] {
+  const raw = localStorage.getItem(OBJETIVOS_PREFIX + userId);
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as Objetivo[];
+  } catch {
+    return [];
+  }
+}
+
+export function saveObjetivos(userId: string, objetivos: Objetivo[]) {
+  localStorage.setItem(OBJETIVOS_PREFIX + userId, JSON.stringify(objetivos));
 }
 
 export function newId(): string {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Atividade, Report, UserProfile } from './types';
+import type { Atividade, Objetivo, Report, UserProfile } from './types';
 import {
   clearCurrentUser,
   deleteReport,
@@ -7,10 +7,11 @@ import {
   getProfile,
   getReports,
   saveAtividades,
+  saveObjetivos,
   saveReport,
 } from './lib/storage';
 import { blankReport, duplicateForNextWeek } from './lib/factory';
-import { buildRoadmapSnapshot, seedAtividadesIfNeeded } from './lib/roadmap';
+import { buildRoadmapSnapshot, seedAtividadesIfNeeded, seedObjetivosIfNeeded } from './lib/roadmap';
 import Login from './components/Login';
 import ReportEditor from './components/editor/ReportEditor';
 import SnapshotView from './components/snapshot/SnapshotView';
@@ -22,6 +23,7 @@ export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [atividades, setAtividades] = useState<Atividade[]>([]);
+  const [objetivos, setObjetivos] = useState<Objetivo[]>([]);
   const [draft, setDraft] = useState<Report | null>(null);
   const [view, setView] = useState<View>('editor');
   const [exporting, setExporting] = useState(false);
@@ -38,6 +40,7 @@ export default function App() {
     setProfile(p);
     setReports(existing);
     setAtividades(seedAtividadesIfNeeded(userId));
+    setObjetivos(seedObjetivosIfNeeded(userId));
     if (existing.length > 0) {
       setDraft(existing[0]);
     } else {
@@ -52,6 +55,7 @@ export default function App() {
     setProfile(p);
     const existing = getReports(p.userId);
     setAtividades(seedAtividadesIfNeeded(p.userId));
+    setObjetivos(seedObjetivosIfNeeded(p.userId));
     if (existing.length > 0) {
       setReports(existing);
       setDraft(existing[0]);
@@ -68,6 +72,7 @@ export default function App() {
     setProfile(null);
     setReports([]);
     setAtividades([]);
+    setObjetivos([]);
     setDraft(null);
     setView('editor');
   }
@@ -76,6 +81,12 @@ export default function App() {
     if (!profile) return;
     setAtividades(next);
     saveAtividades(profile.userId, next);
+  }
+
+  function updateObjetivos(next: Objetivo[]) {
+    if (!profile) return;
+    setObjetivos(next);
+    saveObjetivos(profile.userId, next);
   }
 
   function updateDraft(next: Report) {
@@ -97,7 +108,7 @@ export default function App() {
   function handleGenerateSnapshot() {
     if (!draft || !profile) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    const withSnapshot = { ...draft, roadmapSnapshot: buildRoadmapSnapshot(atividades, draft.weekStart) };
+    const withSnapshot = { ...draft, roadmapSnapshot: buildRoadmapSnapshot(atividades, draft.weekStart, objetivos) };
     saveReport(withSnapshot);
     setDraft(withSnapshot);
     setReports(getReports(profile.userId));
@@ -246,13 +257,15 @@ export default function App() {
                 onChange={updateDraft}
                 atividades={atividades}
                 onAtividadesChange={updateAtividades}
+                objetivos={objetivos}
+                onObjetivosChange={updateObjetivos}
               />
             </fieldset>
           )}
 
           {view === 'snapshot' && draft && (
             <div className="overflow-x-auto pb-8">
-              <SnapshotView ref={snapshotRef} report={draft} atividades={atividades} />
+              <SnapshotView ref={snapshotRef} report={draft} atividades={atividades} objetivos={objetivos} />
             </div>
           )}
         </div>

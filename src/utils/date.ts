@@ -55,6 +55,30 @@ export function currentWeekOfObjetivo(objetivo: Objetivo, today: Date = new Date
   return Math.min(objetivo.totalWeeks, Math.max(1, diffWeeks));
 }
 
+/**
+ * Total weeks spanned by a date range, counted the same way as
+ * currentWeekOfObjetivo (Monday-to-Monday), so that
+ * currentWeekOfObjetivo({ periodStart, totalWeeks }, periodEnd) === totalWeeks.
+ */
+export function computeTotalWeeks(periodStart: string, periodEnd: string): number {
+  const start = mondayOf(new Date(periodStart + 'T00:00:00'));
+  const end = mondayOf(new Date(periodEnd + 'T00:00:00'));
+  const diffWeeks = Math.floor((end.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+  return Math.max(1, diffWeeks);
+}
+
+const MONTH_ABBR = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+function monthYearAbbr(iso: string): string {
+  const d = new Date(iso + 'T00:00:00');
+  return `${MONTH_ABBR[d.getMonth()]}/${d.getFullYear()}`;
+}
+
+/** e.g. "ago/2026 a out/2026" */
+export function formatObjetivoPeriodLabel(periodStart: string, periodEnd: string): string {
+  return `${monthYearAbbr(periodStart)} a ${monthYearAbbr(periodEnd)}`;
+}
+
 /** Whether an ISO date falls within the 7-day window starting at weekStartISO. */
 export function isWithinWeek(dateISO: string, weekStartISO: string): boolean {
   const d = new Date(dateISO + 'T00:00:00').getTime();

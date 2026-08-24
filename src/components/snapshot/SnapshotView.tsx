@@ -1,8 +1,7 @@
 import { forwardRef } from 'react';
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
-import type { Atividade, ObjetivoProgressSnapshot, Project, Report } from '../../types';
+import type { Atividade, Objetivo, ObjetivoProgressSnapshot, Project, Report } from '../../types';
 import { STATUS_META } from '../../types';
-import { OBJETIVOS } from '../../lib/roadmapSeed';
 import { buildRoadmapSnapshot } from '../../lib/roadmap';
 import StatusBadge from './StatusBadge';
 import LogoOrigem from './LogoOrigem';
@@ -24,6 +23,7 @@ import {
 interface Props {
   report: Report;
   atividades: Atividade[];
+  objetivos: Objetivo[];
 }
 
 // Fixed export width keeps PNG/PDF output consistent; height grows with
@@ -177,7 +177,6 @@ function DeliveryCard({ project, index }: { project: Project; index: number }) {
 }
 
 function ObjetivoCard({ snapshot, index }: { snapshot: ObjetivoProgressSnapshot; index: number }) {
-  const objetivo = OBJETIVOS.find((o) => o.id === snapshot.objetivoId)!;
   const color = DECOR[index % DECOR.length];
   const hasActivity = snapshot.completedPlanned.length > 0 || snapshot.completedExtra.length > 0;
 
@@ -189,15 +188,15 @@ function ObjetivoCard({ snapshot, index }: { snapshot: ObjetivoProgressSnapshot;
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color }}>
-            {objetivo.entregaLabel}
+            {snapshot.entregaLabel ?? ''}
           </p>
-          <p className="text-sm font-bold leading-snug text-slate-900">{objetivo.name}</p>
+          <p className="text-sm font-bold leading-snug text-slate-900">{snapshot.name ?? 'Objetivo'}</p>
         </div>
         <span
           className="text-[10px] font-bold rounded-full px-2 py-1 shrink-0"
           style={{ backgroundColor: `${color}1A`, color }}
         >
-          Semana {snapshot.weekOfQuarter} de {objetivo.totalWeeks}
+          Semana {snapshot.weekOfQuarter} de {snapshot.totalWeeks ?? snapshot.weekOfQuarter}
         </span>
       </div>
 
@@ -240,8 +239,9 @@ function ObjetivoCard({ snapshot, index }: { snapshot: ObjetivoProgressSnapshot;
   );
 }
 
-const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report, atividades }, ref) => {
-  const roadmapData: ObjetivoProgressSnapshot[] = report.roadmapSnapshot ?? buildRoadmapSnapshot(atividades, report.weekStart);
+const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report, atividades, objetivos }, ref) => {
+  const roadmapData: ObjetivoProgressSnapshot[] =
+    report.roadmapSnapshot ?? buildRoadmapSnapshot(atividades, report.weekStart, objetivos);
   const generatedAt = new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: '2-digit',

@@ -1,4 +1,4 @@
-import type { Atividade, Report } from '../../types';
+import type { Atividade, Objetivo, Report } from '../../types';
 import { blankProject } from '../../lib/factory';
 import { formatPeriodLabel } from '../../utils/date';
 import ProjectCard from './ProjectCard';
@@ -10,9 +10,18 @@ interface Props {
   onChange: (report: Report) => void;
   atividades: Atividade[];
   onAtividadesChange: (atividades: Atividade[]) => void;
+  objetivos: Objetivo[];
+  onObjetivosChange: (objetivos: Objetivo[]) => void;
 }
 
-export default function ReportEditor({ report, onChange, atividades, onAtividadesChange }: Props) {
+export default function ReportEditor({
+  report,
+  onChange,
+  atividades,
+  onAtividadesChange,
+  objetivos,
+  onObjetivosChange,
+}: Props) {
   function set<K extends keyof Report>(key: K, value: Report[K]) {
     onChange({ ...report, [key]: value });
   }
@@ -141,6 +150,8 @@ export default function ReportEditor({ report, onChange, atividades, onAtividade
           Roadmap — Estruturação da Área de Sistemas
         </h2>
         <RoadmapEditor
+          objetivos={objetivos}
+          onObjetivosChange={onObjetivosChange}
           atividades={atividades}
           onChange={onAtividadesChange}
           projects={report.projects}

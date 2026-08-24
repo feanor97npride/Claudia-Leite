@@ -14,16 +14,22 @@ acompanhamento das atividades da área de Sistemas (TI).
 - As seções **Entregas da semana** e **Avanços para a semana seguinte**
   recebem destaque visual em cada projeto — são o foco principal do report.
 - **Roadmap por Objetivos (Quarters)** — acompanhamento do roadmap "Estruturação
-  da Área de Sistemas": 4 objetivos fixos de 12 semanas cada (Diagnóstico,
-  Governança, Operação, Estratégia Futura), cada um com uma lista de atividades
-  pré-cadastradas. O progresso (%) de cada objetivo é calculado automaticamente
-  a partir das atividades planejadas concluídas; atividades extras (fora do
-  planejamento original) podem ser adicionadas livremente, aparecem marcadas
-  com a tag "Extra" e não contam para o progresso. O snapshot semanal mostra,
-  por objetivo, a semana atual do quarter, o progresso e as atividades
-  (planejadas e extras) concluídas naquela semana especificamente — esses
-  números ficam congelados no momento em que o snapshot é gerado, então
-  relatórios antigos no histórico não mudam se o roadmap for atualizado depois.
+  da Área de Sistemas": 4 objetivos (Diagnóstico, Governança, Operação,
+  Estratégia Futura), cada um com uma lista de atividades pré-cadastradas. O
+  progresso (%) de cada objetivo é calculado automaticamente a partir das
+  atividades planejadas concluídas; atividades extras (fora do planejamento
+  original) podem ser adicionadas livremente, aparecem marcadas com a tag
+  "Extra" e não contam para o progresso. O snapshot semanal mostra, por
+  objetivo, a semana atual do quarter, o progresso e as atividades (planejadas
+  e extras) concluídas naquela semana especificamente — esses números ficam
+  congelados no momento em que o snapshot é gerado, então relatórios antigos
+  no histórico não mudam se o roadmap for atualizado depois.
+- Cada objetivo pode ser editado (botão "✎ Editar" no card): nome, rótulo da
+  entrega, e a data de início/fim (o total de semanas e "Semana X de Y" são
+  recalculados automaticamente a partir do range). Atividades planejadas
+  também podem ser renomeadas, e qualquer atividade aceita uma anotação livre
+  opcional. O vínculo atividade→objetivo é sempre por ID interno, então
+  renomear nunca quebra o cálculo de progresso nem o histórico já gerado.
 - Campo livre de **Próximos Passos** por relatório, independente de projetos ou
   objetivos específicos — anotação da equipe/responsável a cada semana.
 - Botão "Gerar snapshot" produz a visualização formatada em um único quadro,

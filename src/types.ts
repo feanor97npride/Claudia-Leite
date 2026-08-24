@@ -66,6 +66,7 @@ export interface Atividade {
   status: ActivityStatus;
   kind: ActivityKind;
   completedAt?: string; // ISO date, set when status -> 'done'
+  note?: string; // free-text annotation, informational only — never affects progress %
 }
 
 export const ACTIVITY_STATUS_META: Record<ActivityStatus, { label: string }> = {
@@ -77,6 +78,14 @@ export const ACTIVITY_STATUS_META: Record<ActivityStatus, { label: string }> = {
 // --- Roadmap: frozen per-report progress snapshot ---
 export interface ObjetivoProgressSnapshot {
   objetivoId: ObjetivoId;
+  // Display fields frozen at generation time, so a historical report keeps
+  // showing the objetivo's name/label/period as they were then, even if the
+  // live objetivo is renamed/rescheduled later. Optional for backward
+  // compatibility with snapshots generated before this field existed.
+  name?: string;
+  entregaLabel?: string;
+  periodLabel?: string;
+  totalWeeks?: number;
   progress: number; // 0-100
   weekOfQuarter: number; // 1-totalWeeks
   completedPlanned: { id: string; name: string }[];

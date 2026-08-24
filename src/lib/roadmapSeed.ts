@@ -1,6 +1,7 @@
 import type { Objetivo, ObjetivoId } from '../types';
 
-export const OBJETIVOS: Objetivo[] = [
+/** Seed values only — the live, editable source of truth is per-user state (see lib/roadmap.ts). */
+export const DEFAULT_OBJETIVOS: Objetivo[] = [
   {
     id: 'diagnostico',
     name: 'Diagnóstico',
