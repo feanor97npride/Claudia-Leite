@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { listObjetivoVersions } from '../../../server/roadmap';
-import { sendJson, withErrorHandling, HttpError, requireAuth } from '../../../server/http';
+import { listObjetivoVersions } from '../../../server/roadmap.js';
+import { sendJson, withErrorHandling, HttpError, requireAuth } from '../../../server/http.js';
 
 function idFromUrl(url: string): string {
   const parts = url.split('?')[0].split('/').filter(Boolean);

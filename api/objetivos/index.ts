@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { listObjetivos, seedRoadmapIfNeeded } from '../../server/roadmap';
-import { sendJson, withErrorHandling, HttpError, requireAuth } from '../../server/http';
+import { listObjetivos, seedRoadmapIfNeeded } from '../../server/roadmap.js';
+import { sendJson, withErrorHandling, HttpError, requireAuth } from '../../server/http.js';
 
 export default withErrorHandling(async (req: IncomingMessage, res: ServerResponse) => {
   await requireAuth(req); // both Admin and Viewer can read

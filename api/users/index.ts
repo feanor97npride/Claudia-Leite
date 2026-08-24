@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { pool } from '../../server/db';
-import { hashPassword, validatePasswordPolicy, type Role } from '../../server/auth';
-import { readJsonBody, sendJson, withErrorHandling, HttpError, requireAuth, requireRole } from '../../server/http';
+import { pool } from '../../server/db.js';
+import { hashPassword, validatePasswordPolicy, type Role } from '../../server/auth.js';
+import { readJsonBody, sendJson, withErrorHandling, HttpError, requireAuth, requireRole } from '../../server/http.js';
 
 export default withErrorHandling(async (req: IncomingMessage, res: ServerResponse) => {
   const user = await requireAuth(req);

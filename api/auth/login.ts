@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { login, createSession, sessionCookieHeader } from '../../server/auth';
-import { readJsonBody, sendJson, withErrorHandling, HttpError } from '../../server/http';
+import { login, createSession, sessionCookieHeader } from '../../server/auth.js';
+import { readJsonBody, sendJson, withErrorHandling, HttpError } from '../../server/http.js';
 
 export default withErrorHandling(async (req: IncomingMessage, res: ServerResponse) => {
   if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');

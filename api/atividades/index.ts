@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { listAtividades, createExtraAtividade } from '../../server/roadmap';
-import { readJsonBody, sendJson, withErrorHandling, HttpError, requireAuth } from '../../server/http';
+import { listAtividades, createExtraAtividade } from '../../server/roadmap.js';
+import { readJsonBody, sendJson, withErrorHandling, HttpError, requireAuth } from '../../server/http.js';
 
 export default withErrorHandling(async (req: IncomingMessage, res: ServerResponse) => {
   const user = await requireAuth(req);

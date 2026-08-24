@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
-import { pool } from './db';
+import { pool } from './db.js';
 
 export type Role = 'admin' | 'viewer';
 

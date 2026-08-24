@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import { pool } from './db';
-import { hashPassword } from './auth';
+import { pool } from './db.js';
+import { hashPassword } from './auth.js';
 
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? 'admin@sistema.local';
 

@@ -1,9 +1,9 @@
-import { pool } from './db';
-import { computeTotalWeeks, formatObjetivoPeriodLabel } from './dateUtils';
-import { recordAudit } from './audit';
-import { HttpError, requireRole } from './http';
-import type { AuthedUser } from './auth';
-import { DEFAULT_OBJETIVOS, SEED_ATIVIDADES } from '../src/lib/roadmapSeed';
+import { pool } from './db.js';
+import { computeTotalWeeks, formatObjetivoPeriodLabel } from './dateUtils.js';
+import { recordAudit } from './audit.js';
+import { HttpError, requireRole } from './http.js';
+import type { AuthedUser } from './auth.js';
+import { DEFAULT_OBJETIVOS, SEED_ATIVIDADES } from '../src/lib/roadmapSeed.js';
 
 export interface ObjetivoRow {
   id: string;

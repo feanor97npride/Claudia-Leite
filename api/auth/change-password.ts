@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { verifyPassword, setPassword, validatePasswordPolicy } from '../../server/auth';
-import { pool } from '../../server/db';
-import { readJsonBody, sendJson, withErrorHandling, HttpError, requireAuth } from '../../server/http';
+import { verifyPassword, setPassword, validatePasswordPolicy } from '../../server/auth.js';
+import { pool } from '../../server/db.js';
+import { readJsonBody, sendJson, withErrorHandling, HttpError, requireAuth } from '../../server/http.js';
 
 export default withErrorHandling(async (req: IncomingMessage, res: ServerResponse) => {
   if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');

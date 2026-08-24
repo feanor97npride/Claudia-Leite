@@ -1,5 +1,5 @@
-import { pool } from './db';
-import type { AuthedUser } from './auth';
+import { pool } from './db.js';
+import type { AuthedUser } from './auth.js';
 
 export type ChangeType = 'escopo' | 'prazo' | 'status' | 'outro';
 export type EntityType = 'objetivo' | 'atividade';

@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { getUserForSession, parseCookie, SESSION_COOKIE_NAME, type AuthedUser, type Role } from './auth';
+import { getUserForSession, parseCookie, SESSION_COOKIE_NAME, type AuthedUser, type Role } from './auth.js';
 
 export class HttpError extends Error {
   status: number;
