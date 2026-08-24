@@ -76,7 +76,7 @@ confiando só em esconder botões no front-end) e manter uma trilha de
 auditoria que o próprio usuário não possa editar.
 
 **Implementado nesta fase:**
-- Login com e-mail/senha (hash com `bcrypt`, nunca texto plano); sessão
+- Login com e-mail/senha (hash com `bcryptjs`, nunca texto plano); sessão
   guardada no banco (não JWT — ver o comentário em `server/auth.ts` com a
   justificativa completa), revogável a qualquer momento.
 - Dois papéis: **Admin** (leitura e escrita) e **Visualizador** (somente
@@ -164,5 +164,5 @@ npm run preview
 - React + TypeScript + Vite
 - Tailwind CSS v4
 - html2canvas-pro + jsPDF (exportação PNG/PDF)
-- Backend: funções serverless (`/api`) + Postgres (`pg`) + `bcrypt`, servidas
+- Backend: funções serverless (`/api`) + Postgres (`pg`) + `bcryptjs`, servidas
   localmente pela própria Vite dev server via um plugin em `vite.config.ts`
