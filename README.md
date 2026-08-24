@@ -13,6 +13,19 @@ acompanhamento das atividades da área de Sistemas (TI).
   próximos passos e riscos/bloqueios.
 - As seções **Entregas da semana** e **Avanços para a semana seguinte**
   recebem destaque visual em cada projeto — são o foco principal do report.
+- **Roadmap por Objetivos (Quarters)** — acompanhamento do roadmap "Estruturação
+  da Área de Sistemas": 4 objetivos fixos de 12 semanas cada (Diagnóstico,
+  Governança, Operação, Estratégia Futura), cada um com uma lista de atividades
+  pré-cadastradas. O progresso (%) de cada objetivo é calculado automaticamente
+  a partir das atividades planejadas concluídas; atividades extras (fora do
+  planejamento original) podem ser adicionadas livremente, aparecem marcadas
+  com a tag "Extra" e não contam para o progresso. O snapshot semanal mostra,
+  por objetivo, a semana atual do quarter, o progresso e as atividades
+  (planejadas e extras) concluídas naquela semana especificamente — esses
+  números ficam congelados no momento em que o snapshot é gerado, então
+  relatórios antigos no histórico não mudam se o roadmap for atualizado depois.
+- Campo livre de **Próximos Passos** por relatório, independente de projetos ou
+  objetivos específicos — anotação da equipe/responsável a cada semana.
 - Botão "Gerar snapshot" produz a visualização formatada em um único quadro,
   com largura fixa e altura que cresce naturalmente conforme a quantidade de
   projetos/texto — os itens nunca são espremidos para caber num tamanho fixo.

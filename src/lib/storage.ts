@@ -1,8 +1,9 @@
-import type { Report, UserProfile } from '../types';
+import type { Atividade, Report, UserProfile } from '../types';
 
 const CURRENT_USER_KEY = 'wsr:currentUser';
 const PROFILE_PREFIX = 'wsr:profile:';
 const REPORTS_PREFIX = 'wsr:reports:';
+const ATIVIDADES_PREFIX = 'wsr:atividades:';
 
 export function slugifyUser(name: string): string {
   return name
@@ -40,7 +41,9 @@ export function getReports(userId: string): Report[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw) as Report[];
-    return parsed.sort((a, b) => b.weekStart.localeCompare(a.weekStart));
+    return parsed
+      .map((r) => ({ ...r, nextSteps: r.nextSteps ?? '' })) // migration: old reports predate this field
+      .sort((a, b) => b.weekStart.localeCompare(a.weekStart));
   } catch {
     return [];
   }
@@ -60,6 +63,20 @@ export function saveReport(report: Report) {
 export function deleteReport(userId: string, reportId: string) {
   const reports = getReports(userId).filter((r) => r.id !== reportId);
   localStorage.setItem(REPORTS_PREFIX + userId, JSON.stringify(reports));
+}
+
+export function getAtividades(userId: string): Atividade[] {
+  const raw = localStorage.getItem(ATIVIDADES_PREFIX + userId);
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as Atividade[];
+  } catch {
+    return [];
+  }
+}
+
+export function saveAtividades(userId: string, atividades: Atividade[]) {
+  localStorage.setItem(ATIVIDADES_PREFIX + userId, JSON.stringify(atividades));
 }
 
 export function newId(): string {

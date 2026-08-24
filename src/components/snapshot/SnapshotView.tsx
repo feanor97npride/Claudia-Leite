@@ -1,7 +1,9 @@
 import { forwardRef } from 'react';
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
-import type { Project, Report } from '../../types';
+import type { Atividade, ObjetivoProgressSnapshot, Project, Report } from '../../types';
 import { STATUS_META } from '../../types';
+import { OBJETIVOS } from '../../lib/roadmapSeed';
+import { buildRoadmapSnapshot } from '../../lib/roadmap';
 import StatusBadge from './StatusBadge';
 import LogoOrigem from './LogoOrigem';
 import {
@@ -21,6 +23,7 @@ import {
 
 interface Props {
   report: Report;
+  atividades: Atividade[];
 }
 
 // Fixed export width keeps PNG/PDF output consistent; height grows with
@@ -173,7 +176,72 @@ function DeliveryCard({ project, index }: { project: Project; index: number }) {
   );
 }
 
-const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report }, ref) => {
+function ObjetivoCard({ snapshot, index }: { snapshot: ObjetivoProgressSnapshot; index: number }) {
+  const objetivo = OBJETIVOS.find((o) => o.id === snapshot.objetivoId)!;
+  const color = DECOR[index % DECOR.length];
+  const hasActivity = snapshot.completedPlanned.length > 0 || snapshot.completedExtra.length > 0;
+
+  return (
+    <div
+      className="rounded-2xl bg-white p-4 flex flex-col gap-2.5"
+      style={{ border: `1px solid ${LINE}`, borderTop: `3px solid ${color}` }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color }}>
+            {objetivo.entregaLabel}
+          </p>
+          <p className="text-sm font-bold leading-snug text-slate-900">{objetivo.name}</p>
+        </div>
+        <span
+          className="text-[10px] font-bold rounded-full px-2 py-1 shrink-0"
+          style={{ backgroundColor: `${color}1A`, color }}
+        >
+          Semana {snapshot.weekOfQuarter} de {objetivo.totalWeeks}
+        </span>
+      </div>
+
+      <div>
+        <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: LINE }}>
+          <div className="h-full rounded-full" style={{ width: `${snapshot.progress}%`, backgroundColor: color }} />
+        </div>
+        <p className="text-[11px] font-semibold mt-1" style={{ color: INK_400 }}>
+          {snapshot.progress}% concluído
+        </p>
+      </div>
+
+      <div className="text-[12px] leading-snug flex-1" style={{ color: INK_600 }}>
+        {!hasActivity ? (
+          <p className="text-slate-400 italic">Nenhuma atividade concluída nesta semana.</p>
+        ) : (
+          <ul className="space-y-1">
+            {snapshot.completedPlanned.map((a) => (
+              <li key={a.id} className="flex items-start gap-1.5">
+                <IconCheck className="w-3 h-3 shrink-0 mt-0.5" style={{ color: STATUS_META.on_track.color }} />
+                <span>{a.name}</span>
+              </li>
+            ))}
+            {snapshot.completedExtra.map((a) => (
+              <li key={a.id} className="flex items-start gap-1.5">
+                <IconCheck className="w-3 h-3 shrink-0 mt-0.5" style={{ color: STATUS_META.on_track.color }} />
+                <span>{a.name}</span>
+                <span
+                  className="text-[9px] font-bold uppercase tracking-wide rounded px-1 py-0.5 shrink-0"
+                  style={{ backgroundColor: `${PURPLE}1A`, color: PURPLE }}
+                >
+                  Extra
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report, atividades }, ref) => {
+  const roadmapData: ObjetivoProgressSnapshot[] = report.roadmapSnapshot ?? buildRoadmapSnapshot(atividades, report.weekStart);
   const generatedAt = new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: '2-digit',
@@ -291,9 +359,19 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report }, ref) => {
           </div>
         </section>
 
-        {/* 2. Entregas - foco principal */}
+        {/* 2. Roadmap por objetivos */}
         <section>
-          <SectionTitle n={2}>Entregas da semana</SectionTitle>
+          <SectionTitle n={2}>Roadmap — Estruturação da Área de Sistemas</SectionTitle>
+          <div className="grid grid-cols-2 gap-4">
+            {roadmapData.map((s, i) => (
+              <ObjetivoCard key={s.objetivoId} snapshot={s} index={i} />
+            ))}
+          </div>
+        </section>
+
+        {/* 3. Entregas - foco principal */}
+        <section>
+          <SectionTitle n={3}>Entregas da semana</SectionTitle>
           <div className={`grid gap-4 ${gridColsFor(report.projects.length)}`}>
             {report.projects.map((p, i) => (
               <DeliveryCard key={p.id} project={p} index={i} />
@@ -301,9 +379,9 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report }, ref) => {
           </div>
         </section>
 
-        {/* 3. Avanços - um card por avanço */}
+        {/* 4. Avanços - um card por avanço */}
         <section>
-          <SectionTitle n={3}>Avanços antecipados para a próxima semana</SectionTitle>
+          <SectionTitle n={4}>Avanços antecipados para a próxima semana</SectionTitle>
           {advances.length === 0 ? (
             <p className="text-slate-400 italic text-[11px]">Nenhum avanço antecipado registrado.</p>
           ) : (
@@ -327,10 +405,10 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report }, ref) => {
           )}
         </section>
 
-        {/* 4. Insights */}
+        {/* 5. Insights */}
         {insightCount > 0 && (
           <section>
-            <SectionTitle n={4}>Insights da semana</SectionTitle>
+            <SectionTitle n={5}>Insights da semana</SectionTitle>
             <div className={`grid gap-4 ${insightCount === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
               {highlightLines.length > 0 && (
                 <div className="rounded-xl p-5" style={{ background: '#e9f7ee', border: '1px solid #bfe6cd' }}>
@@ -362,10 +440,10 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report }, ref) => {
           </section>
         )}
 
-        {/* 5. Próximos passos */}
+        {/* 6. Próximos passos por projeto */}
         {nextSteps.length > 0 && (
           <section>
-            <SectionTitle n={5}>Próximos passos</SectionTitle>
+            <SectionTitle n={6}>Próximos passos por projeto</SectionTitle>
             {nextSteps.length === 1 ? (
               <div
                 className="rounded-xl bg-white p-3.5 flex items-center gap-2.5 w-fit"
@@ -397,6 +475,18 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report }, ref) => {
                 ))}
               </div>
             )}
+          </section>
+        )}
+
+        {/* 7. Próximos passos (nível do report) */}
+        {report.nextSteps.trim() && (
+          <section>
+            <SectionTitle n={7}>Próximos Passos</SectionTitle>
+            <div className="rounded-xl bg-white p-4" style={{ border: `1px solid ${LINE}` }}>
+              <div className="text-[12.5px] leading-snug" style={{ color: INK_600 }}>
+                {renderLines(report.nextSteps)}
+              </div>
+            </div>
           </section>
         )}
 

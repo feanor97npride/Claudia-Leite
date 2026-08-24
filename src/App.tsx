@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Report, UserProfile } from './types';
+import type { Atividade, Report, UserProfile } from './types';
 import {
   clearCurrentUser,
   deleteReport,
   getCurrentUserId,
   getProfile,
   getReports,
+  saveAtividades,
   saveReport,
 } from './lib/storage';
 import { blankReport, duplicateForNextWeek } from './lib/factory';
+import { buildRoadmapSnapshot, seedAtividadesIfNeeded } from './lib/roadmap';
 import Login from './components/Login';
 import ReportEditor from './components/editor/ReportEditor';
 import SnapshotView from './components/snapshot/SnapshotView';
@@ -19,6 +21,7 @@ type View = 'editor' | 'snapshot';
 export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
+  const [atividades, setAtividades] = useState<Atividade[]>([]);
   const [draft, setDraft] = useState<Report | null>(null);
   const [view, setView] = useState<View>('editor');
   const [exporting, setExporting] = useState(false);
@@ -34,6 +37,7 @@ export default function App() {
     const existing = getReports(userId);
     setProfile(p);
     setReports(existing);
+    setAtividades(seedAtividadesIfNeeded(userId));
     if (existing.length > 0) {
       setDraft(existing[0]);
     } else {
@@ -47,6 +51,7 @@ export default function App() {
   function handleLogin(p: UserProfile) {
     setProfile(p);
     const existing = getReports(p.userId);
+    setAtividades(seedAtividadesIfNeeded(p.userId));
     if (existing.length > 0) {
       setReports(existing);
       setDraft(existing[0]);
@@ -62,8 +67,15 @@ export default function App() {
     clearCurrentUser();
     setProfile(null);
     setReports([]);
+    setAtividades([]);
     setDraft(null);
     setView('editor');
+  }
+
+  function updateAtividades(next: Atividade[]) {
+    if (!profile) return;
+    setAtividades(next);
+    saveAtividades(profile.userId, next);
   }
 
   function updateDraft(next: Report) {
@@ -83,10 +95,11 @@ export default function App() {
   }
 
   function handleGenerateSnapshot() {
-    if (!draft) return;
+    if (!draft || !profile) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveReport(draft);
-    if (!profile) return;
+    const withSnapshot = { ...draft, roadmapSnapshot: buildRoadmapSnapshot(atividades, draft.weekStart) };
+    saveReport(withSnapshot);
+    setDraft(withSnapshot);
     setReports(getReports(profile.userId));
     setView('snapshot');
   }
@@ -228,13 +241,18 @@ export default function App() {
 
           {view === 'editor' && draft && (
             <fieldset disabled={editorDisabled}>
-              <ReportEditor report={draft} onChange={updateDraft} />
+              <ReportEditor
+                report={draft}
+                onChange={updateDraft}
+                atividades={atividades}
+                onAtividadesChange={updateAtividades}
+              />
             </fieldset>
           )}
 
           {view === 'snapshot' && draft && (
             <div className="overflow-x-auto pb-8">
-              <SnapshotView ref={snapshotRef} report={draft} />
+              <SnapshotView ref={snapshotRef} report={draft} atividades={atividades} />
             </div>
           )}
         </div>

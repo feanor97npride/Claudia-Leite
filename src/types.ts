@@ -29,6 +29,8 @@ export interface Report {
   indicators: Indicator[];
   highlights: string;
   attentionPoints: string;
+  nextSteps: string;
+  roadmapSnapshot?: RoadmapSnapshot;
   createdAt: string;
   updatedAt: string;
 }
@@ -39,6 +41,49 @@ export interface UserProfile {
   area: string;
   responsible: string;
 }
+
+// --- Roadmap: Objetivos (fixed quarters) ---
+export type ObjetivoId = 'diagnostico' | 'governanca' | 'operacao' | 'estrategia_futura';
+
+export interface Objetivo {
+  id: ObjetivoId;
+  name: string;
+  entregaLabel: string;
+  periodStart: string; // ISO date
+  periodEnd: string; // ISO date
+  periodLabel: string;
+  totalWeeks: number;
+}
+
+// --- Roadmap: Atividades (per-objetivo checklist items) ---
+export type ActivityStatus = 'planned' | 'in_progress' | 'done';
+export type ActivityKind = 'planned' | 'extra';
+
+export interface Atividade {
+  id: string;
+  name: string;
+  objetivoId: ObjetivoId;
+  status: ActivityStatus;
+  kind: ActivityKind;
+  completedAt?: string; // ISO date, set when status -> 'done'
+}
+
+export const ACTIVITY_STATUS_META: Record<ActivityStatus, { label: string }> = {
+  planned: { label: 'Planejada' },
+  in_progress: { label: 'Em andamento' },
+  done: { label: 'Concluída' },
+};
+
+// --- Roadmap: frozen per-report progress snapshot ---
+export interface ObjetivoProgressSnapshot {
+  objetivoId: ObjetivoId;
+  progress: number; // 0-100
+  weekOfQuarter: number; // 1-totalWeeks
+  completedPlanned: { id: string; name: string }[];
+  completedExtra: { id: string; name: string }[];
+}
+
+export type RoadmapSnapshot = ObjetivoProgressSnapshot[];
 
 export const STATUS_META: Record<
   ProjectStatus,

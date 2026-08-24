@@ -1,15 +1,18 @@
-import type { Report } from '../../types';
+import type { Atividade, Report } from '../../types';
 import { blankProject } from '../../lib/factory';
 import { formatPeriodLabel } from '../../utils/date';
 import ProjectCard from './ProjectCard';
 import IndicatorsEditor from './IndicatorsEditor';
+import RoadmapEditor from './RoadmapEditor';
 
 interface Props {
   report: Report;
   onChange: (report: Report) => void;
+  atividades: Atividade[];
+  onAtividadesChange: (atividades: Atividade[]) => void;
 }
 
-export default function ReportEditor({ report, onChange }: Props) {
+export default function ReportEditor({ report, onChange, atividades, onAtividadesChange }: Props) {
   function set<K extends keyof Report>(key: K, value: Report[K]) {
     onChange({ ...report, [key]: value });
   }
@@ -121,6 +124,13 @@ export default function ReportEditor({ report, onChange }: Props) {
         </div>
       </section>
 
+      <section>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+          Roadmap — Estruturação da Área de Sistemas
+        </h2>
+        <RoadmapEditor atividades={atividades} onChange={onAtividadesChange} />
+      </section>
+
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
           Indicadores gerais <span className="normal-case text-slate-400">(opcional)</span>
@@ -147,6 +157,17 @@ export default function ReportEditor({ report, onChange }: Props) {
             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-slate-900/20"
           />
         </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Próximos Passos</h2>
+        <textarea
+          value={report.nextSteps}
+          onChange={(e) => set('nextSteps', e.target.value)}
+          placeholder="Anotação livre da equipe, independente de projetos/objetivos"
+          rows={3}
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+        />
       </section>
     </div>
   );

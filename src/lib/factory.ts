@@ -30,6 +30,7 @@ export function blankReport(profile: UserProfile): Report {
     indicators: [],
     highlights: '',
     attentionPoints: '',
+    nextSteps: '',
     createdAt: now,
     updatedAt: now,
   };
@@ -46,6 +47,8 @@ export function duplicateForNextWeek(source: Report): Report {
     periodLabel: formatPeriodLabel(weekStart),
     createdAt: now,
     updatedAt: now,
+    // Last week's frozen roadmap progress must not carry over under the new week's header.
+    roadmapSnapshot: undefined,
     projects: source.projects.map((p) => ({
       ...p,
       id: newId(),
