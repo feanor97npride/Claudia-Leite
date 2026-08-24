@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import type { ActivityStatus, Atividade, Objetivo, Project } from '../../types';
 import { ACTIVITY_STATUS_META } from '../../types';
-import { atividadesForObjetivo, blankAtividade, computeObjetivoProgress } from '../../lib/roadmap';
+import {
+  atividadesForObjetivo,
+  blankAtividade,
+  computeAheadBehindPercent,
+  computeObjetivoAheadBehind,
+  computeObjetivoProgress,
+} from '../../lib/roadmap';
 import { computeTotalWeeks, currentWeekOfObjetivo, formatObjetivoPeriodLabel, todayISO } from '../../utils/date';
 
 interface Props {
@@ -18,14 +24,32 @@ const STATUS_OPTIONS: ActivityStatus[] = ['planned', 'in_progress', 'done'];
 const INPUT_CLASS =
   'rounded-lg border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-slate-900/20';
 
+export interface ActivityDraft {
+  name?: string;
+  note?: string;
+  plannedStart?: string;
+  plannedEnd?: string;
+  completedAt?: string;
+}
+
+function AheadBehindBadge({ atividade }: { atividade: Atividade }) {
+  const pct = computeAheadBehindPercent(atividade);
+  if (pct === null) {
+    return <span className="text-[10px] text-slate-400 italic shrink-0">sem dados de prazo</span>;
+  }
+  const color = pct > 0 ? 'text-emerald-700 bg-emerald-50' : pct < 0 ? 'text-red-700 bg-red-50' : 'text-slate-600 bg-slate-100';
+  const label = pct > 0 ? `+${pct}% adiantada` : pct < 0 ? `${pct}% atrasada` : 'No prazo (0%)';
+  return (
+    <span className={`text-[10px] font-semibold rounded px-1.5 py-0.5 shrink-0 ${color}`}>{label}</span>
+  );
+}
+
 interface AtividadeRowProps {
   atividade: Atividade;
   projects: Project[];
   editingObjetivo: boolean;
-  draftName?: string;
-  draftNote?: string;
-  onDraftNameChange: (id: string, value: string) => void;
-  onDraftNoteChange: (id: string, value: string) => void;
+  draft?: ActivityDraft;
+  onDraftChange: (id: string, patch: Partial<ActivityDraft>) => void;
   onUpdate: (id: string, patch: Partial<Atividade>) => void;
   onRemove: (id: string) => void;
   onInsertDelivery: (projectId: string, text: string) => void;
@@ -35,10 +59,8 @@ function AtividadeRow({
   atividade: a,
   projects,
   editingObjetivo,
-  draftName,
-  draftNote,
-  onDraftNameChange,
-  onDraftNoteChange,
+  draft,
+  onDraftChange,
   onUpdate,
   onRemove,
   onInsertDelivery,
@@ -56,8 +78,12 @@ function AtividadeRow({
   }
 
   const nameEditable = a.kind === 'extra' || editingObjetivo;
-  const nameValue = a.kind === 'extra' ? a.name : (draftName ?? a.name);
-  const noteValue = draftNote ?? a.note ?? '';
+  const nameValue = a.kind === 'extra' ? a.name : (draft?.name ?? a.name);
+  const noteValue = draft?.note ?? a.note ?? '';
+  const plannedStartValue = draft?.plannedStart ?? a.plannedStart ?? '';
+  const plannedEndValue = draft?.plannedEnd ?? a.plannedEnd ?? '';
+  const completedAtValue = draft?.completedAt ?? a.completedAt ?? '';
+  const completedAtIsFuture = completedAtValue > todayISO();
 
   return (
     <div className="flex flex-col gap-1">
@@ -66,7 +92,7 @@ function AtividadeRow({
           <input
             value={nameValue}
             onChange={(e) =>
-              a.kind === 'extra' ? onUpdate(a.id, { name: e.target.value }) : onDraftNameChange(a.id, e.target.value)
+              a.kind === 'extra' ? onUpdate(a.id, { name: e.target.value }) : onDraftChange(a.id, { name: e.target.value })
             }
             placeholder={a.kind === 'extra' ? 'Nome da atividade extra' : 'Nome da atividade'}
             className={`flex-1 min-w-[120px] ${INPUT_CLASS}`}
@@ -90,6 +116,7 @@ function AtividadeRow({
             </option>
           ))}
         </select>
+        {a.status === 'done' && !editingObjetivo && <AheadBehindBadge atividade={a} />}
         {a.status === 'done' && projects.length > 0 && (
           <>
             {projects.length > 1 && (
@@ -125,10 +152,44 @@ function AtividadeRow({
           </button>
         )}
       </div>
+      {editingObjetivo && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] text-slate-400 shrink-0">Prazo:</span>
+          <input
+            type="date"
+            value={plannedStartValue}
+            onChange={(e) => onDraftChange(a.id, { plannedStart: e.target.value })}
+            className={`${INPUT_CLASS} shrink-0`}
+          />
+          <span className="text-[10px] text-slate-400 shrink-0">até</span>
+          <input
+            type="date"
+            value={plannedEndValue}
+            onChange={(e) => onDraftChange(a.id, { plannedEnd: e.target.value })}
+            className={`${INPUT_CLASS} shrink-0`}
+          />
+          {a.status === 'done' && (
+            <>
+              <span className="text-[10px] text-slate-400 shrink-0 ml-1.5">Concluída em:</span>
+              <input
+                type="date"
+                value={completedAtValue}
+                onChange={(e) => onDraftChange(a.id, { completedAt: e.target.value })}
+                className={`${INPUT_CLASS} shrink-0`}
+              />
+              {completedAtIsFuture && (
+                <span title="Data de conclusão no futuro" className="text-amber-500 text-xs shrink-0">
+                  ⚠
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      )}
       {editingObjetivo ? (
         <input
           value={noteValue}
-          onChange={(e) => onDraftNoteChange(a.id, e.target.value)}
+          onChange={(e) => onDraftChange(a.id, { note: e.target.value })}
           placeholder="Anotação (opcional)"
           className={`ml-0 ${INPUT_CLASS}`}
         />
@@ -165,11 +226,12 @@ function ObjetivoCard({
   const [draftEntregaLabel, setDraftEntregaLabel] = useState(objetivo.entregaLabel);
   const [draftPeriodStart, setDraftPeriodStart] = useState(objetivo.periodStart);
   const [draftPeriodEnd, setDraftPeriodEnd] = useState(objetivo.periodEnd);
-  const [draftActivities, setDraftActivities] = useState<Record<string, { name?: string; note?: string }>>({});
+  const [draftActivities, setDraftActivities] = useState<Record<string, ActivityDraft>>({});
   const [error, setError] = useState('');
 
   const items = atividadesForObjetivo(objetivo.id, atividades);
   const progress = computeObjetivoProgress(objetivo.id, atividades);
+  const aheadBehind = computeObjetivoAheadBehind(objetivo.id, atividades);
   const week = currentWeekOfObjetivo(objetivo);
 
   function startEditing() {
@@ -212,6 +274,15 @@ function ObjetivoCard({
         return;
       }
     }
+    for (const a of items) {
+      const draft = draftActivities[a.id];
+      const plannedStart = draft?.plannedStart ?? a.plannedStart;
+      const plannedEnd = draft?.plannedEnd ?? a.plannedEnd;
+      if (plannedStart && plannedEnd && !(plannedStart < plannedEnd)) {
+        setError(`"${a.name || 'Atividade'}": a data de início planejada deve ser anterior à data de fim planejada.`);
+        return;
+      }
+    }
 
     const totalWeeks = computeTotalWeeks(draftPeriodStart, draftPeriodEnd);
     const periodLabel = formatObjetivoPeriodLabel(draftPeriodStart, draftPeriodEnd);
@@ -231,6 +302,12 @@ function ObjetivoCard({
       const patch: Partial<Atividade> = {};
       if (draft.name !== undefined && draft.name.trim() !== a.name) patch.name = draft.name.trim();
       if (draft.note !== undefined && draft.note !== (a.note ?? '')) patch.note = draft.note || undefined;
+      if (draft.plannedStart !== undefined && draft.plannedStart !== (a.plannedStart ?? ''))
+        patch.plannedStart = draft.plannedStart || undefined;
+      if (draft.plannedEnd !== undefined && draft.plannedEnd !== (a.plannedEnd ?? ''))
+        patch.plannedEnd = draft.plannedEnd || undefined;
+      if (draft.completedAt !== undefined && draft.completedAt !== (a.completedAt ?? ''))
+        patch.completedAt = draft.completedAt || undefined;
       if (Object.keys(patch).length > 0) onUpdateAtividade(a.id, patch);
     }
 
@@ -239,7 +316,7 @@ function ObjetivoCard({
     setEditing(false);
   }
 
-  function updateDraftActivity(id: string, patch: { name?: string; note?: string }) {
+  function updateDraftActivity(id: string, patch: Partial<ActivityDraft>) {
     setDraftActivities((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
   }
 
@@ -303,11 +380,29 @@ function ObjetivoCard({
         </div>
       </div>
 
-      <div>
-        <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
-          <div className="h-full bg-slate-900 rounded-full" style={{ width: `${progress}%` }} />
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1">
+          <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
+            <div className="h-full bg-slate-900 rounded-full" style={{ width: `${progress}%` }} />
+          </div>
+          <p className="text-xs font-semibold text-slate-500 mt-1">{progress}% concluído</p>
         </div>
-        <p className="text-xs font-semibold text-slate-500 mt-1">{progress}% concluído</p>
+        <div className="text-right shrink-0">
+          <p className="text-[10px] uppercase tracking-wide text-slate-400">Adiantamento médio</p>
+          <p
+            className={`text-xs font-semibold ${
+              aheadBehind === null
+                ? 'text-slate-400 italic'
+                : aheadBehind > 0
+                  ? 'text-emerald-700'
+                  : aheadBehind < 0
+                    ? 'text-red-700'
+                    : 'text-slate-600'
+            }`}
+          >
+            {aheadBehind === null ? 'sem dados' : `${aheadBehind > 0 ? '+' : ''}${aheadBehind}%`}
+          </p>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -317,10 +412,8 @@ function ObjetivoCard({
             atividade={a}
             projects={projects}
             editingObjetivo={editing}
-            draftName={draftActivities[a.id]?.name}
-            draftNote={draftActivities[a.id]?.note}
-            onDraftNameChange={(id, value) => updateDraftActivity(id, { name: value })}
-            onDraftNoteChange={(id, value) => updateDraftActivity(id, { note: value })}
+            draft={draftActivities[a.id]}
+            onDraftChange={updateDraftActivity}
             onUpdate={onUpdateAtividade}
             onRemove={onRemoveExtra}
             onInsertDelivery={onInsertDelivery}

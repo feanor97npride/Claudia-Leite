@@ -32,6 +32,18 @@ acompanhamento das atividades da área de Sistemas (TI).
   renomear nunca quebra o cálculo de progresso nem o histórico já gerado.
 - Campo livre de **Próximos Passos** por relatório, independente de projetos ou
   objetivos específicos — anotação da equipe/responsável a cada semana.
+- Cada atividade aceita uma data de início e fim planejadas; ao concluí-la, o
+  sistema calcula o **% de adiantamento/atraso** (positivo = concluída antes
+  do prazo, negativo = depois), mostrado com indicação visual (verde/vermelho/
+  neutro) na própria linha da atividade. Atividades sem essas datas mostram
+  "sem dados de prazo" e ficam fora do cálculo. Cada objetivo exibe também o
+  "Adiantamento médio do quarter" — média das atividades planejadas concluídas
+  (extras não contam, mesma regra do progresso %) — ou "sem dados" enquanto
+  nenhuma tiver sido concluída com prazo preenchido. A data de conclusão real
+  é preenchida automaticamente ao marcar como concluída, mas pode ser ajustada
+  manualmente (com aviso, sem bloquear, se for definida no futuro).
+- No snapshot, o rótulo de cada entrega (ex: "ENTREGA 1") exibe também o
+  período do objetivo ao lado (ex: "ENTREGA 1 · ago/2026 a out/2026").
 - Botão "Gerar snapshot" produz a visualização formatada em um único quadro,
   com largura fixa e altura que cresce naturalmente conforme a quantidade de
   projetos/texto — os itens nunca são espremidos para caber num tamanho fixo.

@@ -44,6 +44,50 @@ export function computeObjetivoProgress(objetivoId: ObjetivoId, atividades: Ativ
   return Math.round((done / planned.length) * 100);
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * % de adiantamento/atraso de UMA atividade concluída.
+ *
+ *   duração planejada (dias) = plannedEnd - plannedStart
+ *   dias de antecipação      = plannedEnd - completedAt   (positivo = concluída antes do prazo, negativo = depois)
+ *   % adiantamento/atraso    = (dias de antecipação / duração planejada) * 100
+ *
+ * Exemplo: Matriz RACI planejada de 21/ago a 31/ago (10 dias), concluída em
+ * 21/ago -> 10 dias de antecipação -> (10 / 10) * 100 = 100% de adiantamento.
+ *
+ * Retorna `null` (sem dados/não aplicável) quando a atividade não está
+ * concluída, quando faltam plannedStart/plannedEnd/completedAt, ou quando a
+ * duração planejada não é positiva — nesses casos a atividade simplesmente
+ * não entra no cálculo, em vez de contar como 0%.
+ */
+export function computeAheadBehindPercent(a: Atividade): number | null {
+  if (a.status !== 'done') return null;
+  if (!a.plannedStart || !a.plannedEnd || !a.completedAt) return null;
+  const plannedStart = new Date(a.plannedStart + 'T00:00:00').getTime();
+  const plannedEnd = new Date(a.plannedEnd + 'T00:00:00').getTime();
+  const completedAt = new Date(a.completedAt + 'T00:00:00').getTime();
+  const plannedDurationDays = (plannedEnd - plannedStart) / DAY_MS;
+  if (plannedDurationDays <= 0) return null;
+  const daysAhead = (plannedEnd - completedAt) / DAY_MS;
+  return Math.round((daysAhead / plannedDurationDays) * 100);
+}
+
+/**
+ * Adiantamento médio do quarter: média simples do % de adiantamento/atraso
+ * das atividades PLANEJADAS concluídas do objetivo (atividades extras nunca
+ * entram, mesma regra já aplicada ao progresso %). `null` = ainda sem
+ * nenhuma atividade planejada concluída com dados de prazo suficientes.
+ */
+export function computeObjetivoAheadBehind(objetivoId: ObjetivoId, atividades: Atividade[]): number | null {
+  const values = atividades
+    .filter((a) => a.objetivoId === objetivoId && a.kind === 'planned')
+    .map(computeAheadBehindPercent)
+    .filter((v): v is number => v !== null);
+  if (values.length === 0) return null;
+  return Math.round(values.reduce((sum, v) => sum + v, 0) / values.length);
+}
+
 function completedInWeek(objetivoId: ObjetivoId, atividades: Atividade[], weekStart: string, kind: ActivityKind) {
   return atividades
     .filter(

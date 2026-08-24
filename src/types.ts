@@ -65,8 +65,10 @@ export interface Atividade {
   objetivoId: ObjetivoId;
   status: ActivityStatus;
   kind: ActivityKind;
-  completedAt?: string; // ISO date, set when status -> 'done'
+  completedAt?: string; // ISO date — real completion date; auto-set when status -> 'done', manually editable
   note?: string; // free-text annotation, informational only — never affects progress %
+  plannedStart?: string; // ISO date — planned start, used only for the ahead/behind % calculation
+  plannedEnd?: string; // ISO date — planned end, used only for the ahead/behind % calculation
 }
 
 export const ACTIVITY_STATUS_META: Record<ActivityStatus, { label: string }> = {

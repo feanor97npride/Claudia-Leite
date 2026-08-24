@@ -189,6 +189,8 @@ function ObjetivoCard({ snapshot, index }: { snapshot: ObjetivoProgressSnapshot;
         <div>
           <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color }}>
             {snapshot.entregaLabel ?? ''}
+            {snapshot.entregaLabel && snapshot.periodLabel ? ' · ' : ''}
+            <span className="normal-case">{snapshot.periodLabel ?? ''}</span>
           </p>
           <p className="text-sm font-bold leading-snug text-slate-900">{snapshot.name ?? 'Objetivo'}</p>
         </div>
