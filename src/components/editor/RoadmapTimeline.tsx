@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Atividade, Objetivo, ObjetivoId } from '../../types';
+import type { Atividade, Objetivo, ObjetivoId, TimelineVisualStatus } from '../../types';
 import { OBJETIVO_COLOR, TIMELINE_STATUS_META } from '../../types';
-import { atividadesForObjetivo, isVisibleThisWeek, monthColumnRange, timelineVisualStatus } from '../../lib/roadmap';
+import { atividadesForObjetivo, computeObjetivoProgress, isVisibleThisWeek, monthColumnRange, timelineVisualStatus } from '../../lib/roadmap';
 import { monthKey, monthKeyLabel, monthsBetween, todayISO } from '../../utils/date';
 import AtividadeDetailModal from './AtividadeDetailModal';
 import HoverPreviewCard from './HoverPreviewCard';
@@ -35,6 +35,10 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
   const [selected, setSelected] = useState<{ atividade: Atividade; objetivo: Objetivo } | null>(null);
   const [preview, setPreview] = useState<PreviewState>(null);
   const [todayLeft, setTodayLeft] = useState<number | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<ObjetivoId>>(new Set());
+  const [categoriaFilter, setCategoriaFilter] = useState<Set<ObjetivoId>>(new Set());
+  const [statusFilter, setStatusFilter] = useState<Set<TimelineVisualStatus>>(new Set());
+  const [responsavelFilter, setResponsavelFilter] = useState<Set<string>>(new Set());
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -169,6 +173,27 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
     }
   }
 
+  function toggleCollapse(objetivoId: ObjetivoId) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(objetivoId)) next.delete(objetivoId);
+      else next.add(objetivoId);
+      return next;
+    });
+  }
+
+  /** Every filter dimension is a Set — empty means "no filter" (show all)
+   *  for that dimension; multiple selections within one dimension are OR'd
+   *  together, and the 3 dimensions are AND'd. */
+  function toggleInSet<T>(setState: React.Dispatch<React.SetStateAction<Set<T>>>, value: T) {
+    setState((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+  }
+
   async function toggleFullscreen() {
     if (!containerRef.current) return;
     if (document.fullscreenElement) {
@@ -180,21 +205,53 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
 
   if (objetivos.length === 0) return null;
 
+  // Every atividade eligible to appear in the Gantt at all (has planned
+  // start/end, visible this week) — independent of the filter chips below.
+  // Used both to derive filter options (categoria/responsável) and to tell
+  // "no plannable data yet" apart from "filters hid everything".
+  const eligibleRows = objetivos.flatMap((objetivo) =>
+    atividadesForObjetivo(objetivo.id, atividades)
+      .filter((a) => isVisibleThisWeek(a, currentWeekStart))
+      .filter((a): a is Atividade & { plannedStart: string; plannedEnd: string } => !!a.plannedStart && !!a.plannedEnd)
+      .map((atividade) => ({ atividade, objetivo })),
+  );
+
+  const responsavelOptions = Array.from(
+    new Set(
+      eligibleRows
+        .flatMap(({ atividade }) => [atividade.raciAccountableName, atividade.raciResponsibleName])
+        .map((n) => n?.trim())
+        .filter((n): n is string => !!n),
+    ),
+  ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+  function matchesFilters({ atividade, objetivo }: (typeof eligibleRows)[number]): boolean {
+    if (categoriaFilter.size > 0 && !categoriaFilter.has(objetivo.id)) return false;
+    if (statusFilter.size > 0 && !statusFilter.has(timelineVisualStatus(atividade, today))) return false;
+    if (responsavelFilter.size > 0) {
+      const names = [atividade.raciAccountableName, atividade.raciResponsibleName]
+        .map((n) => n?.trim())
+        .filter((n): n is string => !!n);
+      if (!names.some((n) => responsavelFilter.has(n))) return false;
+    }
+    return true;
+  }
+
+  const filteredRows = eligibleRows.filter(matchesFilters);
+  const hasActiveFilters = categoriaFilter.size > 0 || statusFilter.size > 0 || responsavelFilter.size > 0;
+
   const groups = objetivos
     .map((objetivo) => ({
       objetivo,
-      rows: atividadesForObjetivo(objetivo.id, atividades)
-        .filter((a) => isVisibleThisWeek(a, currentWeekStart))
-        .filter((a): a is Atividade & { plannedStart: string; plannedEnd: string } => !!a.plannedStart && !!a.plannedEnd)
-        .map((atividade) => ({
+      rows: filteredRows
+        .filter((r) => r.objetivo.id === objetivo.id)
+        .map(({ atividade }) => ({
           atividade,
           range: monthColumnRange(atividade.plannedStart, atividade.plannedEnd, months),
         }))
         .filter((row): row is typeof row & { range: { startIdx: number; span: number } } => row.range !== null),
     }))
     .filter((group) => group.rows.length > 0);
-
-  const rows = groups.flatMap((group) => group.rows.map((row) => ({ objetivo: group.objetivo, ...row })));
 
   return (
     <section
@@ -217,12 +274,97 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
           {isFullscreen ? '⤡ Sair da tela cheia' : '⤢ Tela cheia'}
         </button>
       </div>
-      {rows.length === 0 ? (
+      {eligibleRows.length === 0 ? (
         <p className="text-xs text-slate-400 italic">
           Nenhuma atividade com início e fim planejados definidos ainda — defina o "Prazo" de uma
           atividade no Roadmap acima (modo de edição de um Objetivo) para ela aparecer aqui.
         </p>
       ) : (
+        <>
+          <div className="flex flex-wrap items-start gap-x-4 gap-y-2 mb-3 text-[11px]">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-slate-400 font-medium shrink-0">Categoria:</span>
+              {objetivos.map((o) => {
+                const color = OBJETIVO_COLOR[o.id];
+                const active = categoriaFilter.has(o.id);
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => toggleInSet(setCategoriaFilter, o.id)}
+                    aria-pressed={active}
+                    className={`flex items-center gap-1 rounded-full px-2 py-0.5 border transition-colors ${
+                      active ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color.bar }} />
+                    {o.name}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-slate-400 font-medium shrink-0">Status:</span>
+              {(Object.keys(TIMELINE_STATUS_META) as TimelineVisualStatus[]).map((s) => {
+                const meta = TIMELINE_STATUS_META[s];
+                const active = statusFilter.has(s);
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => toggleInSet(setStatusFilter, s)}
+                    aria-pressed={active}
+                    className={`flex items-center gap-1 rounded-full px-2 py-0.5 border transition-colors ${
+                      active ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: meta.bg, border: meta.border ? `1px solid ${meta.border}` : 'none' }}
+                    />
+                    {meta.label}
+                  </button>
+                );
+              })}
+            </div>
+            {responsavelOptions.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-slate-400 font-medium shrink-0">Responsável:</span>
+                {responsavelOptions.map((name) => {
+                  const active = responsavelFilter.has(name);
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => toggleInSet(setResponsavelFilter, name)}
+                      aria-pressed={active}
+                      className={`rounded-full px-2 py-0.5 border transition-colors ${
+                        active ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCategoriaFilter(new Set());
+                  setStatusFilter(new Set());
+                  setResponsavelFilter(new Set());
+                }}
+                className="text-slate-400 hover:text-slate-900 underline underline-offset-2 shrink-0"
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
+          {groups.length === 0 ? (
+            <p className="text-xs text-slate-400 italic">Nenhuma atividade corresponde aos filtros selecionados.</p>
+          ) : (
         <div className="overflow-x-auto">
           <div
             ref={gridRef}
@@ -255,15 +397,28 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
             )}
             {groups.map((group) => {
               const color = OBJETIVO_COLOR[group.objetivo.id];
+              const isCollapsed = collapsed.has(group.objetivo.id);
+              const plannedItems = atividades.filter((a) => a.objetivoId === group.objetivo.id && a.kind === 'planned');
+              const doneCount = plannedItems.filter((a) => a.status === 'done').length;
+              const progress = computeObjetivoProgress(group.objetivo.id, atividades);
               return (
                 <div key={group.objetivo.id} className="contents">
-                  <div
-                    className="px-2 py-1 font-semibold border-b"
+                  <button
+                    type="button"
+                    onClick={() => toggleCollapse(group.objetivo.id)}
+                    aria-expanded={!isCollapsed}
+                    className="w-full flex items-center justify-between gap-2 px-2 py-1 font-semibold border-b text-left"
                     style={{ backgroundColor: color.tint, color: color.text, borderColor: color.bar, gridColumn: `span ${months.length + 1}` }}
                   >
-                    {group.objetivo.name}
-                  </div>
-                  {group.rows.map(({ atividade, range }) => {
+                    <span className="flex items-center gap-1.5">
+                      <span aria-hidden="true">{isCollapsed ? '▸' : '▾'}</span>
+                      {group.objetivo.name}
+                    </span>
+                    <span className="text-[10px] font-medium opacity-80 shrink-0">
+                      {doneCount}/{plannedItems.length} concluídas — {progress}%
+                    </span>
+                  </button>
+                  {!isCollapsed && group.rows.map(({ atividade, range }) => {
                     const before = range.startIdx;
                     const after = months.length - range.startIdx - range.span;
                     const openDetail = () => {
@@ -376,6 +531,8 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
             })}
           </div>
         </div>
+          )}
+        </>
       )}
       {preview && !selected && (
         <HoverPreviewCard

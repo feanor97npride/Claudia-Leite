@@ -246,6 +246,36 @@ auditoria que o próprio usuário não possa editar.
     um `ResizeObserver` no grid recalcula a posição a cada mudança de
     layout (resize da janela, entrar/sair da tela cheia). Não aparece
     quando a data de hoje cai fora do intervalo de meses exibido.
+- **Fase 2 do redesign da Timeline** — estrutura e navegação para roadmaps
+  grandes (pré-requisito: Fase 1). Tudo em `RoadmapTimeline.tsx`:
+  - **Categorias colapsáveis**: cada cabeçalho de grupo (macro objetivo) é
+    agora um botão com ▾/▸ — clicar recolhe/expande as atividades daquele
+    grupo, mas o cabeçalho (com o contador de progresso, ver abaixo)
+    continua visível, então recolher um grupo não esconde seu resumo.
+  - **Filtros por categoria, responsável e status** — chips no topo do
+    bloco, um grupo de chips por dimensão. Dentro de uma dimensão as
+    seleções são combinadas com OU (ex.: "Concluído" + "Atrasado" mostra
+    as duas); entre dimensões é E (categoria E status E responsável).
+    Nenhum chip selecionado numa dimensão = sem filtro nela. O chip de
+    Status reaproveita as cores/rótulos de `TIMELINE_STATUS_META` (Fase 1);
+    o de Responsável é montado dinamicamente a partir dos nomes RACI
+    (Accountable e Responsible, os dois contam como "responsável")
+    realmente usados nas atividades elegíveis — some sozinho se nenhuma
+    atividade tiver RACI preenchido. Botão "Limpar filtros" aparece só
+    quando algum filtro está ativo. Uma combinação sem resultado mostra
+    "Nenhuma atividade corresponde aos filtros selecionados" (distinto da
+    mensagem "nenhuma atividade com prazo definido ainda", que só aparece
+    quando não há dado nenhum, filtro nenhum aplicado).
+  - **Contador de progresso por categoria**: cada cabeçalho de grupo mostra
+    "X/Y concluídas — Z%" (ex.: "Diagnóstico Revisado: 1/6 concluídas —
+    17%"), reaproveitando `computeObjetivoProgress` — os mesmos números já
+    usados no card do Objetivo na aba Editor, não um recorte dos filtros
+    ativos (o contador reflete o objetivo inteiro mesmo com filtro
+    aplicado, para servir de resumo estável independente do que está
+    filtrado no momento).
+  - O indicador automático de atraso (🔴, Fase 1) segue valendo aqui sem
+    mudança — é a mesma derivação (`timelineVisualStatus`), agora também
+    disponível como opção do filtro de Status.
 - Preview em hover (`HoverPreviewCard`) ao passar o mouse sobre uma
   atividade na Timeline (nome ou barra): aparece depois de 250ms parado
   (evita disparo acidental ao passar o mouse rápido), some depois de
