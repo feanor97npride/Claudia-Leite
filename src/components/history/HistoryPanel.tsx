@@ -49,7 +49,7 @@ export default function HistoryPanel({ reports, activeReportId, onView, onDuplic
                   <p className="text-sm font-semibold text-slate-900">{r.periodLabel}</p>
                   <p className="text-[11px] text-slate-400">
                     {formatShortDate(r.weekStart)} · {r.projects.length}{' '}
-                    {r.projects.length === 1 ? 'projeto' : 'projetos'}
+                    {r.projects.length === 1 ? 'atividade' : 'atividades'}
                   </p>
                 </div>
               </div>
