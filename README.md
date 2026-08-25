@@ -138,11 +138,18 @@ auditoria que o próprio usuário não possa editar.
   como toasts (`ToastContext`), e cada ação de salvar mostra estado de
   carregamento.
 - `App.tsx` carrega/grava o histórico de relatórios pela API
-  (`GET`/`POST /api/reports`, `DELETE /api/reports/:id`) em vez do
-  `localStorage` — autosave (debounce de 400ms), "+ Nova semana",
-  "Gerar snapshot", "Duplicar p/ próx. semana" e "Excluir" persistem no
-  servidor. `src/lib/storage.ts` (`localStorage`) só é lido uma vez, na
-  migração automática descrita acima.
+  (`GET`/`POST /api/reports`, `DELETE /api/reports?id=...` — os três
+  métodos compartilham um único arquivo de rota, ver nota sobre o limite de
+  funções serverless acima) em vez do `localStorage` — autosave (debounce
+  de 400ms), "+ Nova semana", "Gerar snapshot", "Duplicar p/ próx. semana"
+  e "Excluir" persistem no servidor. `src/lib/storage.ts` (`localStorage`)
+  só é lido uma vez, na migração automática descrita acima.
+- Se `GET /api/reports` falhar (ex: a tabela `reports` ainda não existe
+  porque a migration não rodou naquele ambiente), o Editor mostra um aviso
+  de erro com botão "Tentar novamente" em vez de uma tela em branco — o
+  card de histórico também troca "Nenhum relatório salvo ainda" por "Não
+  foi possível carregar." nesse caso, para não parecer que o histórico
+  simplesmente sumiu.
 - Para o papel **Visualizador**, todos os controles de edição/exclusão do
   roadmap são ocultados na interface (além do bloqueio no servidor) — a tela
   mostra os mesmos dados em modo somente-leitura.

@@ -40,6 +40,7 @@ export default function App() {
   const [objetivos, setObjetivos] = useState<Objetivo[]>([]);
   const [roadmapLoading, setRoadmapLoading] = useState(true);
   const [reportsLoading, setReportsLoading] = useState(true);
+  const [reportsError, setReportsError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Report | null>(null);
   const [view, setView] = useState<View>('editor');
   const [exporting, setExporting] = useState(false);
@@ -47,39 +48,43 @@ export default function App() {
   const snapshotRef = useRef<HTMLDivElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  async function loadReports(user: AuthedUser, cancelledRef?: { current: boolean }) {
+    const profile = deriveProfile(user);
+    setReportsLoading(true);
+    setReportsError(null);
+    try {
+      let serverReports = await fetchReports();
+      if (serverReports.length === 0) {
+        // First load against the DB-backed history: recover whatever this
+        // browser still has in localStorage (Bloco 3.2 follow-up — reports
+        // used to live only there) instead of starting from a blank slate.
+        const local = getReports(user.id);
+        const seed = local.length > 0 ? local : [blankReport(profile)];
+        const migrated: Report[] = [];
+        for (const r of seed) migrated.push(await upsertReportApi(r));
+        serverReports = migrated.sort((a, b) => b.weekStart.localeCompare(a.weekStart));
+        if (local.length > 0) {
+          showToast(`${local.length} relatório(s) recuperado(s) do navegador para o servidor.`);
+        }
+      }
+      if (cancelledRef?.current) return;
+      setReports(serverReports);
+      setDraft(serverReports[0] ?? null);
+    } catch (err) {
+      if (!cancelledRef?.current) {
+        const message = err instanceof Error ? err.message : 'Não foi possível carregar o histórico de relatórios.';
+        setReportsError(message);
+        showToast(message, 'error');
+      }
+    } finally {
+      if (!cancelledRef?.current) setReportsLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (!user || user.mustChangePassword) return;
-    const profile = deriveProfile(user);
-    let cancelled = false;
-
-    setReportsLoading(true);
-    (async () => {
-      try {
-        let serverReports = await fetchReports();
-        if (serverReports.length === 0) {
-          // First load against the DB-backed history: recover whatever this
-          // browser still has in localStorage (Bloco 3.2 follow-up — reports
-          // used to live only there) instead of starting from a blank slate.
-          const local = getReports(user.id);
-          const seed = local.length > 0 ? local : [blankReport(profile)];
-          const migrated: Report[] = [];
-          for (const r of seed) migrated.push(await upsertReportApi(r));
-          serverReports = migrated.sort((a, b) => b.weekStart.localeCompare(a.weekStart));
-          if (local.length > 0) {
-            showToast(`${local.length} relatório(s) recuperado(s) do navegador para o servidor.`);
-          }
-        }
-        if (cancelled) return;
-        setReports(serverReports);
-        setDraft(serverReports[0] ?? null);
-      } catch (err) {
-        if (!cancelled) {
-          showToast(err instanceof Error ? err.message : 'Não foi possível carregar o histórico de relatórios.', 'error');
-        }
-      } finally {
-        if (!cancelled) setReportsLoading(false);
-      }
-    })();
+    const cancelledRef = { current: false };
+    void loadReports(user, cancelledRef);
 
     setRoadmapLoading(true);
     Promise.all([fetchObjetivos(), fetchAtividades()])
@@ -91,7 +96,7 @@ export default function App() {
       .finally(() => setRoadmapLoading(false));
 
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.mustChangePassword]);
@@ -103,6 +108,7 @@ export default function App() {
     setAtividades([]);
     setDraft(null);
     setReportsLoading(true);
+    setReportsError(null);
     setView('editor');
   }
 
@@ -341,6 +347,18 @@ export default function App() {
           {view === 'editor' &&
             (reportsLoading ? (
               <p className="text-sm text-slate-400 italic mb-4">Carregando relatório…</p>
+            ) : reportsError ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                <p className="font-semibold">Não foi possível carregar o histórico de relatórios.</p>
+                <p className="mt-1 text-red-600">{reportsError}</p>
+                <button
+                  type="button"
+                  onClick={() => void loadReports(user)}
+                  className="mt-3 text-xs font-medium bg-red-600 text-white rounded-lg px-3 py-1.5 hover:bg-red-700 transition-colors"
+                >
+                  Tentar novamente
+                </button>
+              </div>
             ) : (
               draft && (
                 <fieldset disabled={editorDisabled}>
@@ -383,6 +401,8 @@ export default function App() {
           </h2>
           {reportsLoading ? (
             <p className="text-sm text-slate-400 italic">Carregando…</p>
+          ) : reportsError ? (
+            <p className="text-sm text-red-600">Não foi possível carregar.</p>
           ) : (
             <HistoryPanel
               reports={reports}
