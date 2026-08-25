@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ActivityStatus, Atividade, AtividadePatch, Objetivo, ObjetivoId, Project } from '../../types';
 import { ACTIVITY_STATUS_META, TONE_META } from '../../types';
 import {
@@ -13,6 +13,11 @@ import { useToast } from '../../contexts/ToastContext';
 import AuditHistoryModal from '../history/AuditHistoryModal';
 import ConfirmDialog from '../ConfirmDialog';
 
+export interface FocusAtividade {
+  objetivoId: ObjetivoId;
+  atividadeId: string;
+}
+
 interface Props {
   objetivos: Objetivo[];
   atividades: Atividade[];
@@ -24,6 +29,12 @@ interface Props {
   onUpdateAtividade: (id: string, patch: AtividadePatch) => Promise<void>;
   onAddExtra: (objetivoId: ObjetivoId, name: string) => Promise<Atividade>;
   onRemoveExtra: (id: string) => Promise<void>;
+  /** Set once (e.g. from clicking an activity in the Roadmap Timeline) to
+   *  jump straight to that Objetivo's card in edit mode, scrolled into
+   *  view, with the row briefly highlighted. Consumed once via
+   *  onFocusHandled so it doesn't re-trigger on every re-render. */
+  focusAtividade?: FocusAtividade | null;
+  onFocusHandled?: () => void;
 }
 
 const STATUS_OPTIONS: ActivityStatus[] = ['planned', 'in_progress', 'done'];
@@ -61,6 +72,7 @@ interface AtividadeRowProps {
   projects: Project[];
   readOnly: boolean;
   editingObjetivo: boolean;
+  highlighted?: boolean;
   draft?: ActivityDraft;
   onDraftChange: (id: string, patch: Partial<ActivityDraft>) => void;
   onUpdate: (id: string, patch: AtividadePatch) => Promise<void>;
@@ -74,6 +86,7 @@ function AtividadeRow({
   projects,
   readOnly,
   editingObjetivo,
+  highlighted,
   draft,
   onDraftChange,
   onUpdate,
@@ -138,7 +151,12 @@ function AtividadeRow({
   const needsReason = replanningStart || replanningEnd;
 
   return (
-    <div className="flex flex-col gap-1" data-testid={`atividade-row-${a.id}`}>
+    <div
+      className={`flex flex-col gap-1 rounded-lg transition-colors ${
+        highlighted ? 'ring-2 ring-amber-400 bg-amber-50/60 -mx-1 px-1 py-1' : ''
+      }`}
+      data-testid={`atividade-row-${a.id}`}
+    >
       <div className="flex flex-wrap items-center gap-2">
         {nameEditable ? (
           <input
@@ -353,6 +371,10 @@ interface ObjetivoCardProps {
   onAddExtra: (objetivoId: ObjetivoId, name: string) => Promise<Atividade>;
   onRemoveExtra: (id: string) => Promise<void>;
   onInsertDelivery: (projectId: string, text: string) => void;
+  /** Set only for the one ObjetivoCard that should auto-open in edit mode
+   *  and scroll itself into view (see FocusAtividade on the top-level Props). */
+  focusAtividadeId?: string | null;
+  onFocusHandled?: () => void;
 }
 
 function ObjetivoCard({
@@ -366,8 +388,11 @@ function ObjetivoCard({
   onAddExtra,
   onRemoveExtra,
   onInsertDelivery,
+  focusAtividadeId,
+  onFocusHandled,
 }: ObjetivoCardProps) {
   const { showToast } = useToast();
+  const cardRef = useRef<HTMLDivElement>(null);
   const [editing, setEditing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -379,11 +404,23 @@ function ObjetivoCard({
   const [error, setError] = useState('');
   const [addingExtra, setAddingExtra] = useState(false);
   const [newExtraName, setNewExtraName] = useState('');
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
   const items = atividadesForObjetivo(objetivo.id, atividades);
   const progress = computeObjetivoProgress(objetivo.id, atividades);
   const aheadBehind = computeObjetivoAheadBehind(objetivo.id, atividades);
   const week = currentWeekOfObjetivo(objetivo);
+
+  useEffect(() => {
+    if (!focusAtividadeId) return;
+    startEditing();
+    setHighlightedId(focusAtividadeId);
+    cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    onFocusHandled?.();
+    const timer = setTimeout(() => setHighlightedId(null), 2500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusAtividadeId]);
 
   function startEditing() {
     setDraftName(objetivo.name);
@@ -504,7 +541,11 @@ function ObjetivoCard({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3" data-testid={`objetivo-card-${objetivo.id}`}>
+    <div
+      ref={cardRef}
+      className="rounded-xl border border-slate-200 bg-white p-4 space-y-3"
+      data-testid={`objetivo-card-${objetivo.id}`}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 space-y-1">
           {editing ? (
@@ -622,6 +663,7 @@ function ObjetivoCard({
               projects={projects}
               readOnly={readOnly}
               editingObjetivo={editing}
+              highlighted={a.id === highlightedId}
               draft={draftActivities[a.id]}
               onDraftChange={updateDraftActivity}
               onUpdate={onUpdateAtividade}
@@ -705,6 +747,8 @@ export default function RoadmapEditor({
   onUpdateAtividade,
   onAddExtra,
   onRemoveExtra,
+  focusAtividade,
+  onFocusHandled,
 }: Props) {
   if (objetivos.length === 0) {
     return <p className="text-sm text-slate-400 italic">Carregando roadmap…</p>;
@@ -727,6 +771,8 @@ export default function RoadmapEditor({
           onAddExtra={onAddExtra}
           onRemoveExtra={onRemoveExtra}
           onInsertDelivery={onInsertDelivery}
+          focusAtividadeId={focusAtividade?.objetivoId === objetivo.id ? focusAtividade.atividadeId : null}
+          onFocusHandled={onFocusHandled}
         />
       ))}
     </div>

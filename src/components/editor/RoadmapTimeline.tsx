@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Atividade, Objetivo } from '../../types';
+import type { Atividade, Objetivo, ObjetivoId } from '../../types';
 import { OBJETIVO_COLOR } from '../../types';
 import { atividadesForObjetivo, isVisibleThisWeek, monthColumnRange } from '../../lib/roadmap';
 import { monthKeyLabel, monthsBetween } from '../../utils/date';
+import AtividadeDetailModal from './AtividadeDetailModal';
 
 interface Props {
   objetivos: Objetivo[];
   atividades: Atividade[];
   currentWeekStart: string;
+  readOnly: boolean;
+  onEditAtividade: (objetivoId: ObjetivoId, atividadeId: string) => void;
 }
 
 /**
@@ -18,9 +21,10 @@ interface Props {
  * atividades com início E fim planejados definidos entram no gráfico —
  * sem inventar datas para o que ainda não foi planejado.
  */
-export default function RoadmapTimeline({ objetivos, atividades, currentWeekStart }: Props) {
+export default function RoadmapTimeline({ objetivos, atividades, currentWeekStart, readOnly, onEditAtividade }: Props) {
   const containerRef = useRef<HTMLElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [selected, setSelected] = useState<{ atividade: Atividade; objetivo: Objetivo } | null>(null);
 
   useEffect(() => {
     function handleFullscreenChange() {
@@ -117,11 +121,13 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                   {group.rows.map(({ atividade, range }) => {
                     const before = range.startIdx;
                     const after = months.length - range.startIdx - range.span;
+                    const openDetail = () => setSelected({ atividade, objetivo: group.objetivo });
                     return (
                       <div key={atividade.id} className="contents">
                         <div
-                          className="border-b border-slate-100 px-2 py-1.5 text-slate-600 truncate"
-                          title={`${group.objetivo.entregaLabel} — ${atividade.name}`}
+                          onClick={openDetail}
+                          className="border-b border-slate-100 px-2 py-1.5 text-slate-600 truncate cursor-pointer hover:bg-slate-50"
+                          title={`${group.objetivo.entregaLabel} — ${atividade.name} (clique para detalhes)`}
                         >
                           {atividade.name}
                         </div>
@@ -132,12 +138,14 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                           className="border-b border-l border-slate-100 relative py-0.5"
                           style={{ gridColumn: `span ${range.span}` }}
                         >
-                          <div
-                            className="absolute inset-y-1 left-0.5 right-0.5 rounded flex items-center px-1.5 text-white text-[10px] font-semibold truncate"
+                          <button
+                            type="button"
+                            onClick={openDetail}
+                            className="absolute inset-y-1 left-0.5 right-0.5 rounded flex items-center px-1.5 text-white text-[10px] font-semibold truncate hover:brightness-110 transition-[filter]"
                             style={{ backgroundColor: color.bar }}
                           >
                             {atividade.name}
-                          </div>
+                          </button>
                         </div>
                         {after > 0 && (
                           <div className="border-b border-l border-slate-100" style={{ gridColumn: `span ${after}` }} />
@@ -150,6 +158,18 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
             })}
           </div>
         </div>
+      )}
+      {selected && (
+        <AtividadeDetailModal
+          atividade={selected.atividade}
+          objetivo={selected.objetivo}
+          readOnly={readOnly}
+          onClose={() => setSelected(null)}
+          onEdit={() => {
+            onEditAtividade(selected.objetivo.id, selected.atividade.id);
+            setSelected(null);
+          }}
+        />
       )}
     </section>
   );

@@ -22,6 +22,7 @@ import Login from './components/Login';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import ReportEditor from './components/editor/ReportEditor';
 import RoadmapTimeline from './components/editor/RoadmapTimeline';
+import type { FocusAtividade } from './components/editor/RoadmapEditor';
 import SnapshotView from './components/snapshot/SnapshotView';
 import HistoryPanel from './components/history/HistoryPanel';
 import BackToTopButton from './components/BackToTopButton';
@@ -44,6 +45,7 @@ export default function App() {
   const [reportsError, setReportsError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Report | null>(null);
   const [view, setView] = useState<View>('editor');
+  const [focusAtividade, setFocusAtividade] = useState<FocusAtividade | null>(null);
   const [exporting, setExporting] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const snapshotRef = useRef<HTMLDivElement>(null);
@@ -132,6 +134,11 @@ export default function App() {
   async function handleRemoveExtraAtividade(id: string) {
     await deleteExtraAtividadeApi(id);
     setAtividades((prev) => prev.filter((a) => a.id !== id));
+  }
+
+  function handleEditAtividadeFromTimeline(objetivoId: ObjetivoId, atividadeId: string) {
+    setFocusAtividade({ objetivoId, atividadeId });
+    setView('editor');
   }
 
   function upsertIntoReports(saved: Report) {
@@ -376,6 +383,8 @@ export default function App() {
                       onUpdateAtividade={handleUpdateAtividade}
                       onAddExtraAtividade={handleAddExtraAtividade}
                       onRemoveExtraAtividade={handleRemoveExtraAtividade}
+                      focusAtividade={focusAtividade}
+                      onFocusHandled={() => setFocusAtividade(null)}
                     />
                   )}
                 </fieldset>
@@ -386,7 +395,13 @@ export default function App() {
             (roadmapLoading ? (
               <p className="text-sm text-slate-400 italic">Carregando roadmap…</p>
             ) : (
-              <RoadmapTimeline objetivos={objetivos} atividades={atividades} currentWeekStart={draft?.weekStart ?? todayISO()} />
+              <RoadmapTimeline
+                objetivos={objetivos}
+                atividades={atividades}
+                currentWeekStart={draft?.weekStart ?? todayISO()}
+                readOnly={user.role === 'viewer'}
+                onEditAtividade={handleEditAtividadeFromTimeline}
+              />
             ))}
 
           {view === 'snapshot' && draft && (

@@ -3,7 +3,7 @@ import { blankProject } from '../../lib/factory';
 import { formatPeriodLabel } from '../../utils/date';
 import ProjectCard from './ProjectCard';
 import IndicatorsEditor from './IndicatorsEditor';
-import RoadmapEditor from './RoadmapEditor';
+import RoadmapEditor, { type FocusAtividade } from './RoadmapEditor';
 import GovernanceIndicators from './GovernanceIndicators';
 
 interface Props {
@@ -16,6 +16,8 @@ interface Props {
   onUpdateAtividade: (id: string, patch: AtividadePatch) => Promise<void>;
   onAddExtraAtividade: (objetivoId: ObjetivoId, name: string) => Promise<Atividade>;
   onRemoveExtraAtividade: (id: string) => Promise<void>;
+  focusAtividade?: FocusAtividade | null;
+  onFocusHandled?: () => void;
 }
 
 export default function ReportEditor({
@@ -28,6 +30,8 @@ export default function ReportEditor({
   onUpdateAtividade,
   onAddExtraAtividade,
   onRemoveExtraAtividade,
+  focusAtividade,
+  onFocusHandled,
 }: Props) {
   function set<K extends keyof Report>(key: K, value: Report[K]) {
     onChange({ ...report, [key]: value });
@@ -170,6 +174,8 @@ export default function ReportEditor({
           onUpdateAtividade={onUpdateAtividade}
           onAddExtra={onAddExtraAtividade}
           onRemoveExtra={onRemoveExtraAtividade}
+          focusAtividade={focusAtividade}
+          onFocusHandled={onFocusHandled}
         />
       </section>
 

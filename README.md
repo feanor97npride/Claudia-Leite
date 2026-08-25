@@ -194,7 +194,13 @@ auditoria que o próprio usuário não possa editar.
   canto do bloco expande o gráfico via Fullscreen API do navegador (sem
   bordas de card, ocupando a tela toda) — útil quando o roadmap tem muitas
   atividades/meses e fica apertado no layout normal; "⤡ Sair da tela cheia"
-  ou Esc voltam ao normal.
+  ou Esc voltam ao normal. Clicar numa barra (ou no nome da atividade)
+  abre um painel (`AtividadeDetailModal`) com status, prazo planejado,
+  RACI e anotação; o botão **"Editar no Editor"** troca para a aba Editor,
+  rola até o card do Objetivo correspondente, já abre em modo de edição e
+  destaca brevemente a linha daquela atividade (`focusAtividade` em
+  `App.tsx`, propagado por `ReportEditor`/`RoadmapEditor`) — não é uma
+  segunda cópia editável, é o mesmo formulário do Editor.
 - Paleta de cores/tons (`Tone`, `TONE_META`, `ROLE_META` em `src/types.ts`,
   ao lado de `STATUS_META`/`ACTIVITY_STATUS_META` já existentes) como
   constantes únicas reutilizadas por `RoadmapEditor`, `GovernanceIndicators`
