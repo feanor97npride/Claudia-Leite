@@ -18,10 +18,11 @@ import { useToast } from './contexts/ToastContext';
 import Login from './components/Login';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import ReportEditor from './components/editor/ReportEditor';
+import RoadmapTimeline from './components/editor/RoadmapTimeline';
 import SnapshotView from './components/snapshot/SnapshotView';
 import HistoryPanel from './components/history/HistoryPanel';
 
-type View = 'editor' | 'snapshot';
+type View = 'editor' | 'timeline' | 'snapshot';
 
 function deriveProfile(user: AuthedUser): UserProfile {
   return { userId: user.id, displayName: user.displayName, area: 'Sistemas (TI)', responsible: user.displayName };
@@ -235,6 +236,14 @@ export default function App() {
                 Editor
               </button>
               <button
+                onClick={() => setView('timeline')}
+                className={`px-4 py-1.5 text-sm font-medium ${
+                  view === 'timeline' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                Roadmap Timeline
+              </button>
+              <button
                 onClick={() => draft && setView('snapshot')}
                 className={`px-4 py-1.5 text-sm font-medium ${
                   view === 'snapshot' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'
@@ -251,14 +260,15 @@ export default function App() {
               >
                 + Nova semana
               </button>
-              {view === 'editor' ? (
+              {view === 'editor' && (
                 <button
                   onClick={handleGenerateSnapshot}
                   className="text-sm font-medium bg-slate-900 text-white rounded-lg px-4 py-1.5 hover:bg-slate-800"
                 >
                   Gerar snapshot
                 </button>
-              ) : (
+              )}
+              {view === 'snapshot' && (
                 <>
                   <button
                     disabled={exporting}
@@ -298,6 +308,13 @@ export default function App() {
               )}
             </fieldset>
           )}
+
+          {view === 'timeline' &&
+            (roadmapLoading ? (
+              <p className="text-sm text-slate-400 italic">Carregando roadmap…</p>
+            ) : (
+              <RoadmapTimeline objetivos={objetivos} atividades={atividades} currentWeekStart={draft?.weekStart ?? todayISO()} />
+            ))}
 
           {view === 'snapshot' && draft && (
             <div className="overflow-x-auto pb-8">

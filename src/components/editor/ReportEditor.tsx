@@ -4,7 +4,6 @@ import { formatPeriodLabel } from '../../utils/date';
 import ProjectCard from './ProjectCard';
 import IndicatorsEditor from './IndicatorsEditor';
 import RoadmapEditor from './RoadmapEditor';
-import RoadmapTimeline from './RoadmapTimeline';
 import GovernanceIndicators from './GovernanceIndicators';
 
 interface Props {
@@ -173,8 +172,6 @@ export default function ReportEditor({
           onRemoveExtra={onRemoveExtraAtividade}
         />
       </section>
-
-      <RoadmapTimeline objetivos={objetivos} atividades={atividades} currentWeekStart={report.weekStart} />
 
       <GovernanceIndicators atividades={atividades} />
 
