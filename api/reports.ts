@@ -1,8 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { listReports, upsertReport } from '../../server/reports.js';
-import { readJsonBody, sendJson, withErrorHandling, HttpError, requireAuth } from '../../server/http.js';
-import type { RoadmapSnapshot } from '../../src/types.js';
+import { listReports, upsertReport, deleteReport } from '../server/reports.js';
+import { readJsonBody, sendJson, withErrorHandling, HttpError, requireAuth } from '../server/http.js';
+import type { RoadmapSnapshot } from '../src/types.js';
 
+// GET/POST/DELETE all merged into one file (DELETE takes ?id=... instead of
+// a /:id segment) to keep this under Vercel's 12-Serverless-Function cap on
+// the Hobby plan — see api/auth/[action].ts for the same reasoning.
 export default withErrorHandling(async (req: IncomingMessage, res: ServerResponse) => {
   const user = await requireAuth(req);
 
@@ -30,6 +33,15 @@ export default withErrorHandling(async (req: IncomingMessage, res: ServerRespons
       roadmapSnapshot: body.roadmapSnapshot as RoadmapSnapshot | undefined,
     });
     sendJson(res, 201, { report });
+    return;
+  }
+
+  if (req.method === 'DELETE') {
+    const url = new URL(req.url ?? '', 'http://internal');
+    const id = url.searchParams.get('id') ?? '';
+    if (!id) throw new HttpError(400, 'id é obrigatório.');
+    await deleteReport(user, id);
+    sendJson(res, 200, { ok: true });
     return;
   }
 

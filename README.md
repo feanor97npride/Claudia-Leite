@@ -86,6 +86,19 @@ navegador — é a única forma de validar permissões de verdade (nunca
 confiando só em esconder botões no front-end) e manter uma trilha de
 auditoria que o próprio usuário não possa editar.
 
+> **Limite de funções serverless (plano Hobby da Vercel):** cada arquivo em
+> `/api` vira uma Serverless Function separada, e a Vercel limita o plano
+> Hobby a 12 por deployment — passar disso falha o deploy inteiro com um
+> erro genérico "Deployment has failed", sem apontar a causa (foi o que
+> aconteceu ao adicionar `/api/reports`). Por isso as 4 rotas de auth
+> (`login`/`logout`/`me`/`change-password`) estão num único
+> `api/auth/[action].ts`, e `reports` (GET/POST/DELETE) num único
+> `api/reports.ts` — várias operações por arquivo, roteadas por método
+> HTTP (e no caso de auth, pelo segmento dinâmico da URL), em vez de um
+> arquivo por operação. Ao adicionar uma rota nova, prefira estender um
+> arquivo existente a criar um novo; se for mesmo necessário um arquivo
+> novo, rode `find api -name "*.ts" | wc -l` antes de commitar.
+
 **Implementado nesta fase:**
 - Login com e-mail/senha (hash com `bcryptjs`, nunca texto plano); sessão
   guardada no banco (não JWT — ver o comentário em `server/auth.ts` com a

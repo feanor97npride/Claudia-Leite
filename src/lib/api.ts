@@ -115,6 +115,6 @@ export async function upsertReportApi(report: Report): Promise<Report> {
 }
 
 export function deleteReportApi(id: string): Promise<void> {
-  return request(`/api/reports/${id}`, { method: 'DELETE' });
+  return request(`/api/reports?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 

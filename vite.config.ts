@@ -9,23 +9,19 @@ const pkg = JSON.parse(readFileSync(fileURLToPath(new URL('./package.json', impo
 // only used by the local dev server below; the real deployment relies on
 // Vercel's own file-based routing over the same files under /api.
 const STATIC_API_ROUTES: Record<string, string> = {
-  '/api/auth/login': '/api/auth/login.ts',
-  '/api/auth/logout': '/api/auth/logout.ts',
-  '/api/auth/me': '/api/auth/me.ts',
-  '/api/auth/change-password': '/api/auth/change-password.ts',
   '/api/users': '/api/users/index.ts',
   '/api/objetivos': '/api/objetivos/index.ts',
   '/api/atividades': '/api/atividades/index.ts',
   '/api/audit-log': '/api/audit-log.ts',
-  '/api/reports': '/api/reports/index.ts',
+  '/api/reports': '/api/reports.ts',
 }
 
 function resolveApiFile(pathname: string): string | null {
   if (STATIC_API_ROUTES[pathname]) return STATIC_API_ROUTES[pathname]
+  if (/^\/api\/auth\/[^/]+$/.test(pathname)) return '/api/auth/[action].ts'
   if (/^\/api\/objetivos\/[^/]+\/versions$/.test(pathname)) return '/api/objetivos/[id]/versions.ts'
   if (/^\/api\/objetivos\/[^/]+$/.test(pathname)) return '/api/objetivos/[id].ts'
   if (/^\/api\/atividades\/[^/]+$/.test(pathname)) return '/api/atividades/[id].ts'
-  if (/^\/api\/reports\/[^/]+$/.test(pathname)) return '/api/reports/[id].ts'
   return null
 }
 
