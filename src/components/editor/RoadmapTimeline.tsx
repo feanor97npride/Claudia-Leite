@@ -4,6 +4,7 @@ import { OBJETIVO_COLOR } from '../../types';
 import { atividadesForObjetivo, isVisibleThisWeek, monthColumnRange } from '../../lib/roadmap';
 import { monthKeyLabel, monthsBetween } from '../../utils/date';
 import AtividadeDetailModal from './AtividadeDetailModal';
+import HoverPreviewCard from './HoverPreviewCard';
 
 interface Props {
   objetivos: Objetivo[];
@@ -12,6 +13,11 @@ interface Props {
   readOnly: boolean;
   onEditAtividade: (objetivoId: ObjetivoId, atividadeId: string) => void;
 }
+
+const HOVER_SHOW_DELAY = 250;
+const HOVER_HIDE_DELAY = 150;
+
+type PreviewState = { atividade: Atividade; objetivo: Objetivo; anchorRect: DOMRect } | null;
 
 /**
  * Bloco de referência: um Gantt gerado ao vivo a partir dos períodos dos
@@ -25,6 +31,9 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
   const containerRef = useRef<HTMLElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selected, setSelected] = useState<{ atividade: Atividade; objetivo: Objetivo } | null>(null);
+  const [preview, setPreview] = useState<PreviewState>(null);
+  const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     function handleFullscreenChange() {
@@ -33,6 +42,83 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (showTimer.current) clearTimeout(showTimer.current);
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+    };
+  }, []);
+
+  // Touch devices have no hover — the same items switch to a tap-to-preview,
+  // tap-again-or-outside-to-close pattern instead (handled per-item below).
+  // (hover: none) is the robust check — 'ontouchstart' in window false-
+  // positives on touch-capable laptops that are still primarily mouse-driven.
+  const isTouch = typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches;
+
+  useEffect(() => {
+    if (!isTouch || !preview) return;
+    function handleOutside(e: PointerEvent) {
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target)) {
+        // Let item-level tap handlers manage their own open/close/switch —
+        // only close here when the tap landed outside the whole Timeline
+        // block (e.g. on the page background).
+        const hitItem = (target as HTMLElement).closest?.('[data-hover-item]');
+        const hitCard = (target as HTMLElement).closest?.('[role="tooltip"]');
+        if (hitItem || hitCard) return;
+      }
+      setPreview(null);
+    }
+    document.addEventListener('pointerdown', handleOutside);
+    return () => document.removeEventListener('pointerdown', handleOutside);
+  }, [isTouch, preview]);
+
+  function clearTimers() {
+    if (showTimer.current) {
+      clearTimeout(showTimer.current);
+      showTimer.current = null;
+    }
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+  }
+
+  function scheduleShow(atividade: Atividade, objetivo: Objetivo, target: HTMLElement) {
+    if (isTouch) return;
+    clearTimers();
+    showTimer.current = setTimeout(() => {
+      setPreview({ atividade, objetivo, anchorRect: target.getBoundingClientRect() });
+    }, HOVER_SHOW_DELAY);
+  }
+
+  function scheduleHide() {
+    if (isTouch) return;
+    if (showTimer.current) {
+      clearTimeout(showTimer.current);
+      showTimer.current = null;
+    }
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => setPreview(null), HOVER_HIDE_DELAY);
+  }
+
+  function cancelHide() {
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+  }
+
+  function handleItemTap(atividade: Atividade, objetivo: Objetivo, target: HTMLElement) {
+    if (preview?.atividade.id === atividade.id) {
+      // Second tap on the same item — progress straight to the full detail.
+      setPreview(null);
+      setSelected({ atividade, objetivo });
+    } else {
+      setPreview({ atividade, objetivo, anchorRect: target.getBoundingClientRect() });
+    }
+  }
 
   async function toggleFullscreen() {
     if (!containerRef.current) return;
@@ -121,12 +207,28 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                   {group.rows.map(({ atividade, range }) => {
                     const before = range.startIdx;
                     const after = months.length - range.startIdx - range.span;
-                    const openDetail = () => setSelected({ atividade, objetivo: group.objetivo });
+                    const openDetail = () => {
+                      clearTimers();
+                      setPreview(null);
+                      setSelected({ atividade, objetivo: group.objetivo });
+                    };
                     const isDone = atividade.status === 'done';
+                    const handleClick = (e: React.MouseEvent<HTMLElement>) => {
+                      if (isTouch) {
+                        handleItemTap(atividade, group.objetivo, e.currentTarget);
+                      } else {
+                        openDetail();
+                      }
+                    };
+                    const handleMouseEnter = (e: React.MouseEvent<HTMLElement>) =>
+                      scheduleShow(atividade, group.objetivo, e.currentTarget);
                     return (
                       <div key={atividade.id} className="contents">
                         <div
-                          onClick={openDetail}
+                          data-hover-item
+                          onClick={handleClick}
+                          onMouseEnter={handleMouseEnter}
+                          onMouseLeave={scheduleHide}
                           className={`border-b border-slate-100 px-2 py-1.5 cursor-pointer hover:bg-slate-50 flex items-center gap-1 min-w-0 transition-colors duration-200 ease-out ${
                             isDone ? 'text-slate-900 font-semibold' : 'text-slate-500'
                           }`}
@@ -161,7 +263,10 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                              tint+text was already designed as a legible pair). */}
                           <button
                             type="button"
-                            onClick={openDetail}
+                            data-hover-item
+                            onClick={handleClick}
+                            onMouseEnter={handleMouseEnter}
+                            onMouseLeave={scheduleHide}
                             className={`absolute inset-y-1 left-0.5 right-0.5 rounded flex items-center gap-1 px-1.5 text-[10px] font-semibold truncate hover:brightness-110 transition-colors duration-200 ease-out ${
                               isDone ? 'ring-1 ring-white/60 shadow-sm' : ''
                             }`}
@@ -185,6 +290,20 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
             })}
           </div>
         </div>
+      )}
+      {preview && !selected && (
+        <HoverPreviewCard
+          atividade={preview.atividade}
+          objetivo={preview.objetivo}
+          anchorRect={preview.anchorRect}
+          onMouseEnter={cancelHide}
+          onMouseLeave={scheduleHide}
+          onOpen={() => {
+            clearTimers();
+            setPreview(null);
+            setSelected({ atividade: preview.atividade, objetivo: preview.objetivo });
+          }}
+        />
       )}
       {selected && (
         <AtividadeDetailModal

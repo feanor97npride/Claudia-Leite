@@ -221,6 +221,23 @@ auditoria que o próprio usuário não possa editar.
   `transition-colors duration-200` para não trocar abruptamente ao
   mudar o status. Sem dark mode: o app não tem suporte a tema escuro em
   nenhuma tela ainda, então esse ponto não se aplica por ora.
+- Preview em hover (`HoverPreviewCard`) ao passar o mouse sobre uma
+  atividade na Timeline (nome ou barra): aparece depois de 250ms parado
+  (evita disparo acidental ao passar o mouse rápido), some depois de
+  150ms sem estar sobre o item nem sobre o próprio card — mover o mouse
+  de um para o outro conta como "ainda em cima", não pisca. Mostra nome
+  completo, objetivo, status, prazo, RACI, anotação e adiantamento (se
+  concluída); botão **"Ver detalhes →"** abre o mesmo
+  `AtividadeDetailModal` do clique direto. Posicionamento em duas
+  passadas: renderiza invisível, mede a altura real do card (varia com
+  RACI/nota), só então decide se fica abaixo ou vira para cima do item,
+  e limita para nunca vazar da tela — testado forçando uma viewport
+  baixa para confirmar a virada. Em telas touch (`matchMedia('(hover:
+  none)')`, mais confiável que checar `ontouchstart`), hover não existe:
+  o primeiro toque mostra o preview, o segundo toque no mesmo item abre
+  o modal completo, e tocar fora fecha — comportamento verificado com
+  Playwright emulando um contexto touch. Fade + leve scale na entrada/
+  saída (`transition-all duration-150`).
 - Paleta de cores/tons (`Tone`, `TONE_META`, `ROLE_META` em `src/types.ts`,
   ao lado de `STATUS_META`/`ACTIVITY_STATUS_META` já existentes) como
   constantes únicas reutilizadas por `RoadmapEditor`, `GovernanceIndicators`
