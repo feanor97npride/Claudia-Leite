@@ -10,6 +10,20 @@ export function atividadesForObjetivo(objetivoId: ObjetivoId, atividades: Ativid
   return atividades.filter((a) => a.objetivoId === objetivoId);
 }
 
+/**
+ * Extra atividades don't carry over from week to week in the live editor —
+ * an extra created for last week's report shouldn't still be sitting there
+ * as an open TODO in this week's Roadmap. Planned atividades are always
+ * visible (they're the actual quarter plan, not a per-week note), and an
+ * extra with no weekStart (created before this feature existed) stays
+ * visible too — never disappear pre-existing data as a side effect.
+ */
+export function isVisibleThisWeek(atividade: Atividade, currentWeekStart: string): boolean {
+  if (atividade.kind !== 'extra') return true;
+  if (!atividade.weekStart) return true;
+  return atividade.weekStart === currentWeekStart;
+}
+
 /** progress% = done planned / total planned, per objetivo. Extras never count. */
 export function computeObjetivoProgress(objetivoId: ObjetivoId, atividades: Atividade[]): number {
   const planned = atividades.filter((a) => a.objetivoId === objetivoId && a.kind === 'planned');

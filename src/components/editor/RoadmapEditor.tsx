@@ -6,6 +6,7 @@ import {
   computeAheadBehindPercent,
   computeObjetivoAheadBehind,
   computeObjetivoProgress,
+  isVisibleThisWeek,
 } from '../../lib/roadmap';
 import { computeTotalWeeks, currentWeekOfObjetivo, formatObjetivoPeriodLabel, todayISO } from '../../utils/date';
 import { useToast } from '../../contexts/ToastContext';
@@ -15,12 +16,13 @@ import ConfirmDialog from '../ConfirmDialog';
 interface Props {
   objetivos: Objetivo[];
   atividades: Atividade[];
+  currentWeekStart: string;
   projects: Project[];
   readOnly: boolean;
   onInsertDelivery: (projectId: string, text: string) => void;
   onUpdateObjetivo: (id: ObjetivoId, patch: Partial<Objetivo>) => Promise<void>;
   onUpdateAtividade: (id: string, patch: AtividadePatch) => Promise<void>;
-  onAddExtra: (objetivoId: ObjetivoId, name: string) => Promise<void>;
+  onAddExtra: (objetivoId: ObjetivoId, name: string) => Promise<Atividade>;
   onRemoveExtra: (id: string) => Promise<void>;
 }
 
@@ -328,7 +330,7 @@ interface ObjetivoCardProps {
   readOnly: boolean;
   onUpdateObjetivo: (id: ObjetivoId, patch: Partial<Objetivo>) => Promise<void>;
   onUpdateAtividade: (id: string, patch: AtividadePatch) => Promise<void>;
-  onAddExtra: (objetivoId: ObjetivoId, name: string) => Promise<void>;
+  onAddExtra: (objetivoId: ObjetivoId, name: string) => Promise<Atividade>;
   onRemoveExtra: (id: string) => Promise<void>;
   onInsertDelivery: (projectId: string, text: string) => void;
 }
@@ -672,6 +674,7 @@ function ObjetivoCard({
 export default function RoadmapEditor({
   objetivos,
   atividades,
+  currentWeekStart,
   projects,
   readOnly,
   onInsertDelivery,
@@ -684,13 +687,15 @@ export default function RoadmapEditor({
     return <p className="text-sm text-slate-400 italic">Carregando roadmap…</p>;
   }
 
+  const visibleAtividades = atividades.filter((a) => isVisibleThisWeek(a, currentWeekStart));
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {objetivos.map((objetivo) => (
         <ObjetivoCard
           key={objetivo.id}
           objetivo={objetivo}
-          atividades={atividades}
+          atividades={visibleAtividades}
           projects={projects}
           readOnly={readOnly}
           onUpdateObjetivo={onUpdateObjetivo}

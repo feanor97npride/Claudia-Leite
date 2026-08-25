@@ -15,6 +15,12 @@ export interface Project {
   nextWeekAdvances: string;
   nextSteps: string;
   risks: string;
+  /** Set only when this Project/Iniciativa was created from "+ Adicionar
+   *  atividade extra" with the "vincular" option checked — purely a origin
+   *  marker (shown as a badge), never synced with the atividade's status:
+   *  the two track different things (narrative vs. governed progress), see
+   *  the app's own discussion of this in ReportEditor's section header. */
+  linkedAtividadeId?: string;
 }
 
 export interface Report {
@@ -113,6 +119,11 @@ export interface Atividade {
   // RACI (descriptive only — unrelated to the system access role below)
   raciAccountableName?: string; // "Responsável"
   raciResponsibleName?: string; // "Executor"
+  /** Week (Monday, ISO date) an EXTRA atividade was created in — undefined
+   *  for planned atividades and for extras created before this field
+   *  existed. Used only to hide extras from the live Roadmap editor once
+   *  their week passes (see lib/roadmap.ts isVisibleThisWeek). */
+  weekStart?: string;
 }
 
 /** Partial update sent to PATCH /api/atividades/:id — nullable fields clear

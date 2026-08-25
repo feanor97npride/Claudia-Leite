@@ -27,6 +27,11 @@ export interface AtividadeRow {
   completedAt: string | null;
   raciAccountableName: string | null;
   raciResponsibleName: string | null;
+  /** Week (Monday, ISO date) an extra atividade was created in — null for
+   *  planned atividades and for extras created before this field existed.
+   *  Used only to hide extras from the live Roadmap editor once their week
+   *  passes; never affects audit history, past snapshots, or progress %. */
+  weekStart: string | null;
 }
 
 function mapObjetivo(r: {
@@ -61,6 +66,7 @@ function mapAtividade(r: {
   completed_at: string | null;
   raci_accountable_name: string | null;
   raci_responsible_name: string | null;
+  week_start: string | null;
 }): AtividadeRow {
   return {
     id: r.id,
@@ -74,6 +80,7 @@ function mapAtividade(r: {
     completedAt: r.completed_at,
     raciAccountableName: r.raci_accountable_name,
     raciResponsibleName: r.raci_responsible_name,
+    weekStart: r.week_start,
   };
 }
 
@@ -173,14 +180,19 @@ export async function listObjetivoVersions(id: string) {
   return rows;
 }
 
-export async function createExtraAtividade(user: AuthedUser, objetivoId: string, name: string): Promise<AtividadeRow> {
+export async function createExtraAtividade(
+  user: AuthedUser,
+  objetivoId: string,
+  name: string,
+  weekStart: string | null,
+): Promise<AtividadeRow> {
   requireRole(user, 'admin');
   const { rows: objRows } = await pool.query('SELECT id FROM objetivos WHERE id = $1', [objetivoId]);
   if (!objRows[0]) throw new HttpError(404, 'Objetivo não encontrado.');
 
   const { rows } = await pool.query(
-    `INSERT INTO atividades (objetivo_id, name, status, kind) VALUES ($1, $2, 'planned', 'extra') RETURNING *`,
-    [objetivoId, name],
+    `INSERT INTO atividades (objetivo_id, name, status, kind, week_start) VALUES ($1, $2, 'planned', 'extra', $3) RETURNING *`,
+    [objetivoId, name, weekStart],
   );
   const created = mapAtividade(rows[0]);
   await recordAudit({

@@ -14,7 +14,7 @@ interface Props {
   roadmapReadOnly: boolean;
   onUpdateObjetivo: (id: ObjetivoId, patch: Partial<Objetivo>) => Promise<void>;
   onUpdateAtividade: (id: string, patch: AtividadePatch) => Promise<void>;
-  onAddExtraAtividade: (objetivoId: ObjetivoId, name: string) => Promise<void>;
+  onAddExtraAtividade: (objetivoId: ObjetivoId, name: string) => Promise<Atividade>;
   onRemoveExtraAtividade: (id: string) => Promise<void>;
 }
 
@@ -162,6 +162,7 @@ export default function ReportEditor({
         <RoadmapEditor
           objetivos={objetivos}
           atividades={atividades}
+          currentWeekStart={report.weekStart}
           projects={report.projects}
           readOnly={roadmapReadOnly}
           onInsertDelivery={insertDeliveryFromActivity}

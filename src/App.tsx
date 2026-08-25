@@ -4,6 +4,7 @@ import { ROLE_META } from './types';
 import { deleteReport, getReports, saveReport } from './lib/storage';
 import { blankReport, duplicateForNextWeek } from './lib/factory';
 import { buildRoadmapSnapshot } from './lib/roadmap';
+import { todayISO } from './utils/date';
 import {
   createExtraAtividadeApi,
   deleteExtraAtividadeApi,
@@ -86,8 +87,9 @@ export default function App() {
   }
 
   async function handleAddExtraAtividade(objetivoId: ObjetivoId, name: string) {
-    const created = await createExtraAtividadeApi(objetivoId, name);
+    const created = await createExtraAtividadeApi(objetivoId, name, draft?.weekStart ?? todayISO());
     setAtividades((prev) => [...prev, created]);
+    return created;
   }
 
   async function handleRemoveExtraAtividade(id: string) {

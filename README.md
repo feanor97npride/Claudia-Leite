@@ -19,7 +19,11 @@ acompanhamento das atividades da área de Sistemas (TI).
   progresso (%) de cada objetivo é calculado automaticamente a partir das
   atividades planejadas concluídas; atividades extras (fora do planejamento
   original) podem ser adicionadas livremente, aparecem marcadas com a tag
-  "Extra" e não contam para o progresso. O snapshot semanal mostra, por
+  "Extra" e não contam para o progresso. Uma atividade extra fica visível no
+  editor só na semana em que foi criada — não migra para as semanas
+  seguintes (evita que o Roadmap acumule itens pontuais de semanas antigas);
+  ela continua existindo no banco/auditoria/snapshots antigos, só some da
+  tela ao vivo depois que a semana passa. O snapshot semanal mostra, por
   objetivo, a semana atual do quarter, o progresso e as atividades (planejadas
   e extras) concluídas naquela semana especificamente — esses números ficam
   congelados no momento em que o snapshot é gerado, então relatórios antigos
