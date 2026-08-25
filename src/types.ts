@@ -148,6 +148,10 @@ export interface AtividadePatch {
   plannedEnd?: string | null;
   raciAccountableName?: string | null;
   raciResponsibleName?: string | null;
+  /** Reassigns the atividade to a different Objetivo — audited like any
+   *  other field (Bloco 1.1); the app's progress/timeline calcs need no
+   *  special-casing since they simply filter atividades by objetivoId. */
+  objetivoId?: ObjetivoId;
   reason?: string;
 }
 

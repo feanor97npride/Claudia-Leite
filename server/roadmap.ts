@@ -234,6 +234,7 @@ export async function updateAtividade(
     plannedEnd?: string | null;
     raciAccountableName?: string | null;
     raciResponsibleName?: string | null;
+    objetivoId?: string;
     reason?: string;
   },
 ): Promise<AtividadeRow> {
@@ -242,6 +243,11 @@ export async function updateAtividade(
   const { rows } = await pool.query('SELECT * FROM atividades WHERE id = $1', [id]);
   const current = rows[0] ? mapAtividade(rows[0]) : null;
   if (!current) throw new HttpError(404, 'Atividade não encontrada.');
+
+  if (patch.objetivoId !== undefined && patch.objetivoId !== current.objetivoId) {
+    const { rows: objRows } = await pool.query('SELECT id FROM objetivos WHERE id = $1', [patch.objetivoId]);
+    if (!objRows[0]) throw new HttpError(404, 'Objetivo de destino não encontrado.');
+  }
 
   const next: AtividadeRow = {
     ...current,
@@ -253,6 +259,7 @@ export async function updateAtividade(
     plannedEnd: patch.plannedEnd !== undefined ? patch.plannedEnd : current.plannedEnd,
     raciAccountableName: patch.raciAccountableName !== undefined ? patch.raciAccountableName : current.raciAccountableName,
     raciResponsibleName: patch.raciResponsibleName !== undefined ? patch.raciResponsibleName : current.raciResponsibleName,
+    objetivoId: patch.objetivoId !== undefined ? patch.objetivoId : current.objetivoId,
   };
 
   if (!next.name) throw new HttpError(400, 'O nome da atividade não pode ficar vazio.');
@@ -278,8 +285,8 @@ export async function updateAtividade(
 
   await pool.query(
     `UPDATE atividades SET name = $1, note = $2, status = $3, completed_at = $4, planned_start = $5,
-       planned_end = $6, raci_accountable_name = $7, raci_responsible_name = $8, updated_at = now()
-     WHERE id = $9`,
+       planned_end = $6, raci_accountable_name = $7, raci_responsible_name = $8, objetivo_id = $9, updated_at = now()
+     WHERE id = $10`,
     [
       next.name,
       next.note,
@@ -289,6 +296,7 @@ export async function updateAtividade(
       next.plannedEnd,
       next.raciAccountableName,
       next.raciResponsibleName,
+      next.objetivoId,
       id,
     ],
   );
@@ -302,6 +310,7 @@ export async function updateAtividade(
     ['plannedEnd', current.plannedEnd, next.plannedEnd],
     ['raciAccountableName', current.raciAccountableName, next.raciAccountableName],
     ['raciResponsibleName', current.raciResponsibleName, next.raciResponsibleName],
+    ['objetivoId', current.objetivoId, next.objetivoId],
   ];
   for (const [field, oldVal, newVal] of fieldPairs) {
     if (oldVal !== newVal) {

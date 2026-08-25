@@ -115,6 +115,12 @@ auditoria que o próprio usuário não possa editar.
 - Campos RACI (Responsável/Executor) e o motivo de replanejamento aparecem
   no modo de edição do Objetivo/Atividade, com a mesma validação do servidor
   replicada no cliente para feedback imediato antes do round-trip de rede.
+- Uma Atividade pode ser reatribuída a outro Objetivo (`PATCH
+  /api/atividades/:id` com `objetivoId`) — restrito a Admin, auditado como
+  qualquer outro campo (registra o Objetivo antigo e o novo em "Histórico de
+  Alterações"). Usado para reorganizar itens entre Governança/Operação sem
+  editar o banco diretamente; não há um seletor dedicado na UI ainda, pois é
+  uma correção pontual, não um fluxo recorrente.
 - Painel **"Histórico de Alterações"** (botão "🕘 Histórico" em cada Objetivo
   e em cada Atividade) — mostra a trilha de auditoria completa daquele item
   (campo, valor anterior/novo, classificação, motivo quando houver, usuário e
@@ -135,7 +141,10 @@ auditoria que o próprio usuário não possa editar.
   real, ao contrário de uma imagem estática. Só entram no gráfico atividades
   com início e fim planejados definidos (sem inventar datas para o que
   ainda não foi planejado); respeita o mesmo week-scoping das atividades
-  extras.
+  extras. As atividades são agrupadas por macro objetivo (Diagnóstico,
+  Governança, Operação, Estratégia Futura), cada grupo com uma linha de
+  cabeçalho colorida (mesma cor das barras do Gantt) mostrando o nome do
+  objetivo ao qual aquelas atividades pertencem.
 - Paleta de cores/tons (`Tone`, `TONE_META`, `ROLE_META` em `src/types.ts`,
   ao lado de `STATUS_META`/`ACTIVITY_STATUS_META` já existentes) como
   constantes únicas reutilizadas por `RoadmapEditor`, `GovernanceIndicators`

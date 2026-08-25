@@ -24,6 +24,7 @@ const FIELD_CHANGE_TYPE: Record<string, ChangeType> = {
   name: 'escopo',
   entregaLabel: 'escopo',
   note: 'escopo',
+  objetivoId: 'escopo',
   raciAccountableName: 'outro',
   raciResponsibleName: 'outro',
   periodStart: 'prazo',
