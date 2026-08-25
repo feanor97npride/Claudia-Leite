@@ -24,6 +24,7 @@ import ReportEditor from './components/editor/ReportEditor';
 import RoadmapTimeline from './components/editor/RoadmapTimeline';
 import SnapshotView from './components/snapshot/SnapshotView';
 import HistoryPanel from './components/history/HistoryPanel';
+import BackToTopButton from './components/BackToTopButton';
 
 type View = 'editor' | 'timeline' | 'snapshot';
 
@@ -420,6 +421,8 @@ export default function App() {
           Status Report Semanal · v{__APP_VERSION__}
         </div>
       </footer>
+
+      <BackToTopButton />
     </div>
   );
 }

@@ -176,6 +176,10 @@ auditoria que o próprio usuário não possa editar.
   só não aparece mais agregado neste bloco.)
 - Modal de **confirmação** antes de excluir uma atividade extra (ação
   destrutiva), com Esc/clique-fora para cancelar.
+- Botão flutuante **"Voltar ao topo"** (`BackToTopButton`), canto inferior
+  direito — só aparece depois de rolar mais de 300px, some de novo perto do
+  topo, scroll suave até `y=0`. Global (funciona em qualquer aba), oculto na
+  exportação/impressão (`no-print`).
 - Aba própria **"Roadmap Timeline"** (ao lado de Editor/Snapshot): um Gantt
   gerado ao vivo a partir dos períodos dos Objetivos e das datas planejadas
   das Atividades — serve de referência do roadmap proposto (equivalente ao
