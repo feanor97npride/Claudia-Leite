@@ -124,8 +124,11 @@ export default function ReportEditor({
       </section>
 
       <section>
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Projetos / Atividades</h2>
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Projetos / Iniciativas da semana{' '}
+            <span className="normal-case text-slate-400">(narrativa livre — não faz parte do roadmap governado)</span>
+          </h2>
           <button
             type="button"
             onClick={addProject}

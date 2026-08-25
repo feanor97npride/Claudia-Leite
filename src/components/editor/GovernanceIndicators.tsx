@@ -32,7 +32,7 @@ export default function GovernanceIndicators({ atividades }: Props) {
           prazo/adiantamento/atraso.
         </p>
       )}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
         <Tile value={pct(g.onTimePercent)} label="No prazo" />
         <Tile value={pct(g.earlyPercent)} label="Adiantadas" tone={g.earlyPercent ? 'good' : 'neutral'} />
         <Tile value={pct(g.latePercent)} label="Atrasadas" tone={g.latePercent ? 'bad' : 'neutral'} />
