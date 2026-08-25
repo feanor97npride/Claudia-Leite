@@ -136,6 +136,7 @@ function DeliveryCard({ project, index }: { project: Project; index: number }) {
   const meta = STATUS_META[project.status];
   const bulletCount = linesOf(project.deliveries).length;
   const hasRisk = project.risks.trim().length > 0;
+  const nextStepsLines = linesOf(project.nextSteps);
 
   return (
     <div
@@ -152,7 +153,7 @@ function DeliveryCard({ project, index }: { project: Project; index: number }) {
           </span>
           <p className="text-sm font-bold leading-snug text-slate-900">{project.name || 'Projeto sem nome'}</p>
         </div>
-        <StatusBadge status={project.status} />
+        <StatusBadge status={project.status} label={project.status === 'on_track' ? 'Concluído' : undefined} />
       </div>
       {bulletCount > 0 && (
         <p className="text-[11px] font-semibold" style={{ color: INK_400 }}>
@@ -162,6 +163,14 @@ function DeliveryCard({ project, index }: { project: Project; index: number }) {
       <div className="text-[12.5px] leading-snug flex-1" style={{ color: INK_600 }}>
         {renderLines(project.deliveries)}
       </div>
+      {nextStepsLines.length > 0 && (
+        <div className="text-[12.5px] leading-snug pt-2" style={{ borderTop: `1px dashed ${LINE}` }}>
+          <p className="text-[10px] font-extrabold uppercase tracking-wide mb-1" style={{ color: PURPLE }}>
+            Próximos passos
+          </p>
+          <div style={{ color: INK_600 }}>{renderLines(project.nextSteps)}</div>
+        </div>
+      )}
       <div
         className="text-[11px] pt-2"
         style={{
@@ -258,10 +267,6 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report, atividades, ob
   const advances = report.projects
     .filter((p) => p.nextWeekAdvances.trim())
     .flatMap((p) => linesOf(p.nextWeekAdvances).map((line) => ({ project: p.name || 'Projeto', line })));
-
-  const nextSteps = report.projects
-    .filter((p) => p.nextSteps.trim())
-    .flatMap((p) => linesOf(p.nextSteps).map((line) => ({ project: p.name || 'Projeto', line })));
 
   const highlightLines = linesOf(report.highlights);
   const attentionLines = linesOf(report.attentionPoints);
@@ -442,48 +447,10 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report, atividades, ob
           </section>
         )}
 
-        {/* 6. Próximos passos por projeto */}
-        {nextSteps.length > 0 && (
-          <section>
-            <SectionTitle n={6}>Próximos passos por projeto</SectionTitle>
-            {nextSteps.length === 1 ? (
-              <div
-                className="rounded-xl bg-white p-3.5 flex items-center gap-2.5 w-fit"
-                style={{ border: `1px solid ${LINE}` }}
-              >
-                <IconArrowRight className="w-3.5 h-3.5 shrink-0" style={{ color: INK_400 }} />
-                <p className="text-[12.5px] leading-snug">
-                  <span className="font-bold">{nextSteps[0].project}:</span> {normalizeCase(nextSteps[0].line)}
-                </p>
-              </div>
-            ) : (
-              <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-                {nextSteps.map((s, i) => (
-                  <div
-                    key={i}
-                    className="rounded-xl bg-white p-3.5 flex gap-3 items-start"
-                    style={{ border: `1px solid ${LINE}` }}
-                  >
-                    <span
-                      className="w-[26px] h-[26px] rounded-lg flex items-center justify-center text-white text-[11px] font-extrabold shrink-0"
-                      style={{ backgroundColor: PURPLE }}
-                    >
-                      {String(i + 1).padStart(2, '0')}
-                    </span>
-                    <p className="text-[12.5px] leading-snug">
-                      <span className="font-bold">{s.project}:</span> {normalizeCase(s.line)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* 7. Próximos passos (nível do report) */}
+        {/* 6. Próximos passos (nível do report) */}
         {report.nextSteps.trim() && (
           <section>
-            <SectionTitle n={7}>Próximos Passos</SectionTitle>
+            <SectionTitle n={6}>Próximos Passos</SectionTitle>
             <div className="rounded-xl bg-white p-4" style={{ border: `1px solid ${LINE}` }}>
               <div className="text-[12.5px] leading-snug" style={{ color: INK_600 }}>
                 {renderLines(report.nextSteps)}

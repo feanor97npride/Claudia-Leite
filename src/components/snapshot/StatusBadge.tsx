@@ -4,7 +4,7 @@ import { IconAlert, IconCheck, IconClock } from './icons';
 
 const ICONS = { check: IconCheck, alert: IconAlert, clock: IconClock };
 
-export default function StatusBadge({ status }: { status: ProjectStatus }) {
+export default function StatusBadge({ status, label }: { status: ProjectStatus; label?: string }) {
   const meta = STATUS_META[status];
   const Icon = ICONS[meta.icon];
   return (
@@ -13,7 +13,7 @@ export default function StatusBadge({ status }: { status: ProjectStatus }) {
       style={{ backgroundColor: meta.color }}
     >
       <Icon className="w-2.5 h-2.5" />
-      {meta.label}
+      {label ?? meta.label}
     </span>
   );
 }
