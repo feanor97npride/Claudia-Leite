@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import type { Atividade, Objetivo } from '../../types';
 import { OBJETIVO_COLOR } from '../../types';
 import { atividadesForObjetivo, isVisibleThisWeek, monthColumnRange } from '../../lib/roadmap';
@@ -18,6 +19,26 @@ interface Props {
  * sem inventar datas para o que ainda não foi planejado.
  */
 export default function RoadmapTimeline({ objetivos, atividades, currentWeekStart }: Props) {
+  const containerRef = useRef<HTMLElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    function handleFullscreenChange() {
+      setIsFullscreen(document.fullscreenElement === containerRef.current);
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  async function toggleFullscreen() {
+    if (!containerRef.current) return;
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    } else {
+      await containerRef.current.requestFullscreen();
+    }
+  }
+
   if (objetivos.length === 0) return null;
 
   const rangeStart = objetivos.reduce((min, o) => (o.periodStart < min ? o.periodStart : min), objetivos[0].periodStart);
@@ -41,8 +62,26 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
   const rows = groups.flatMap((group) => group.rows.map((row) => ({ objetivo: group.objetivo, ...row })));
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Roadmap — Visão Timeline</h2>
+    <section
+      ref={containerRef}
+      className={
+        isFullscreen
+          ? 'bg-white p-6 h-full overflow-auto'
+          : 'rounded-xl border border-slate-200 bg-white p-4'
+      }
+    >
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Roadmap — Visão Timeline</h2>
+        <button
+          type="button"
+          onClick={() => void toggleFullscreen()}
+          title={isFullscreen ? 'Sair da tela cheia' : 'Expandir para tela cheia'}
+          aria-label={isFullscreen ? 'Sair da tela cheia' : 'Expandir para tela cheia'}
+          className="text-[11px] font-medium text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded px-2 py-1 transition-colors shrink-0"
+        >
+          {isFullscreen ? '⤡ Sair da tela cheia' : '⤢ Tela cheia'}
+        </button>
+      </div>
       {rows.length === 0 ? (
         <p className="text-xs text-slate-400 italic">
           Nenhuma atividade com início e fim planejados definidos ainda — defina o "Prazo" de uma

@@ -186,7 +186,11 @@ auditoria que o próprio usuário não possa editar.
   extras. As atividades são agrupadas por macro objetivo (Diagnóstico,
   Governança, Operação, Estratégia Futura), cada grupo com uma linha de
   cabeçalho colorida (mesma cor das barras do Gantt) mostrando o nome do
-  objetivo ao qual aquelas atividades pertencem.
+  objetivo ao qual aquelas atividades pertencem. Botão "⤢ Tela cheia" no
+  canto do bloco expande o gráfico via Fullscreen API do navegador (sem
+  bordas de card, ocupando a tela toda) — útil quando o roadmap tem muitas
+  atividades/meses e fica apertado no layout normal; "⤡ Sair da tela cheia"
+  ou Esc voltam ao normal.
 - Paleta de cores/tons (`Tone`, `TONE_META`, `ROLE_META` em `src/types.ts`,
   ao lado de `STATUS_META`/`ACTIVITY_STATUS_META` já existentes) como
   constantes únicas reutilizadas por `RoadmapEditor`, `GovernanceIndicators`
