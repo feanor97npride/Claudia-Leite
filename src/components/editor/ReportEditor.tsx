@@ -12,7 +12,6 @@ interface Props {
   atividades: Atividade[];
   objetivos: Objetivo[];
   roadmapReadOnly: boolean;
-  replanCount: number;
   onUpdateObjetivo: (id: ObjetivoId, patch: Partial<Objetivo>) => Promise<void>;
   onUpdateAtividade: (id: string, patch: AtividadePatch) => Promise<void>;
   onAddExtraAtividade: (objetivoId: ObjetivoId, name: string) => Promise<void>;
@@ -25,7 +24,6 @@ export default function ReportEditor({
   atividades,
   objetivos,
   roadmapReadOnly,
-  replanCount,
   onUpdateObjetivo,
   onUpdateAtividade,
   onAddExtraAtividade,
@@ -171,7 +169,7 @@ export default function ReportEditor({
         />
       </section>
 
-      <GovernanceIndicators atividades={atividades} replanCount={replanCount} />
+      <GovernanceIndicators atividades={atividades} />
 
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">

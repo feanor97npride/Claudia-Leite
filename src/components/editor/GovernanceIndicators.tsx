@@ -4,7 +4,6 @@ import { computeGovernanceIndicators } from '../../lib/roadmap';
 
 interface Props {
   atividades: Atividade[];
-  replanCount: number;
 }
 
 function Tile({ value, label, tone }: { value: string; label: string; tone?: Tone }) {
@@ -18,9 +17,9 @@ function Tile({ value, label, tone }: { value: string; label: string; tone?: Ton
 }
 
 /** Bloco 1.4: PMO/ITIL-style rollup of the whole roadmap's health — % on-time/
- *  late/early, replan count (Bloco 1.2 signal of planning instability), extra
- *  (out-of-plan) activity count, and the existing average ahead/behind %. */
-export default function GovernanceIndicators({ atividades, replanCount }: Props) {
+ *  late/early, extra (out-of-plan) activity count, and the existing average
+ *  ahead/behind %. */
+export default function GovernanceIndicators({ atividades }: Props) {
   const g = computeGovernanceIndicators(atividades);
   const pct = (v: number | null) => (v === null ? '—' : `${v}%`);
 
@@ -37,11 +36,6 @@ export default function GovernanceIndicators({ atividades, replanCount }: Props)
         <Tile value={pct(g.onTimePercent)} label="No prazo" />
         <Tile value={pct(g.earlyPercent)} label="Adiantadas" tone={g.earlyPercent ? 'good' : 'neutral'} />
         <Tile value={pct(g.latePercent)} label="Atrasadas" tone={g.latePercent ? 'bad' : 'neutral'} />
-        <Tile
-          value={String(replanCount)}
-          label="Replanejamentos"
-          tone={replanCount > 0 ? 'bad' : 'neutral'}
-        />
         <Tile value={String(g.extraActivitiesCount)} label="Atividades extras" />
         <Tile
           value={

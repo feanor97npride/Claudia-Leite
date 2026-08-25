@@ -9,7 +9,6 @@ import {
   deleteExtraAtividadeApi,
   fetchAtividades,
   fetchObjetivos,
-  fetchTotalReplanCount,
   updateAtividadeApi,
   updateObjetivoApi,
 } from './lib/api';
@@ -34,7 +33,6 @@ export default function App() {
   const [reports, setReports] = useState<Report[]>([]);
   const [atividades, setAtividades] = useState<Atividade[]>([]);
   const [objetivos, setObjetivos] = useState<Objetivo[]>([]);
-  const [replanCount, setReplanCount] = useState(0);
   const [roadmapLoading, setRoadmapLoading] = useState(true);
   const [draft, setDraft] = useState<Report | null>(null);
   const [view, setView] = useState<View>('editor');
@@ -58,11 +56,10 @@ export default function App() {
     }
 
     setRoadmapLoading(true);
-    Promise.all([fetchObjetivos(), fetchAtividades(), fetchTotalReplanCount()])
-      .then(([objs, atvs, replans]) => {
+    Promise.all([fetchObjetivos(), fetchAtividades()])
+      .then(([objs, atvs]) => {
         setObjetivos(objs);
         setAtividades(atvs);
-        setReplanCount(replans);
       })
       .catch((err) => showToast(err instanceof Error ? err.message : 'Não foi possível carregar o roadmap.', 'error'))
       .finally(() => setRoadmapLoading(false));
@@ -74,7 +71,6 @@ export default function App() {
     setReports([]);
     setObjetivos([]);
     setAtividades([]);
-    setReplanCount(0);
     setDraft(null);
     setView('editor');
   }
@@ -82,13 +78,11 @@ export default function App() {
   async function handleUpdateObjetivo(id: ObjetivoId, patch: Partial<Objetivo>) {
     const updated = await updateObjetivoApi(id, patch);
     setObjetivos((prev) => prev.map((o) => (o.id === id ? updated : o)));
-    if (patch.periodStart || patch.periodEnd) fetchTotalReplanCount().then(setReplanCount);
   }
 
   async function handleUpdateAtividade(id: string, patch: AtividadePatch) {
     const updated = await updateAtividadeApi(id, patch);
     setAtividades((prev) => prev.map((a) => (a.id === id ? updated : a)));
-    if (patch.reason) fetchTotalReplanCount().then(setReplanCount);
   }
 
   async function handleAddExtraAtividade(objetivoId: ObjetivoId, name: string) {
@@ -294,7 +288,6 @@ export default function App() {
                   atividades={atividades}
                   objetivos={objetivos}
                   roadmapReadOnly={user.role === 'viewer'}
-                  replanCount={replanCount}
                   onUpdateObjetivo={handleUpdateObjetivo}
                   onUpdateAtividade={handleUpdateAtividade}
                   onAddExtraAtividade={handleAddExtraAtividade}

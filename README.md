@@ -117,10 +117,11 @@ auditoria que o próprio usuário não possa editar.
   data), visível para Admin e Visualizador, já que é um artefato de
   governança e não uma superfície de edição. Fecha com Esc ou clicando fora.
 - Bloco **"Indicadores de Governança"** no editor do relatório: % de
-  atividades planejadas concluídas no prazo/adiantadas/atrasadas, nº de
-  replanejamentos (agregado de todo o roadmap), contagem de atividades
-  extras e o adiantamento médio geral — reaproveita os mesmos cálculos já
-  usados por objetivo.
+  atividades planejadas concluídas no prazo/adiantadas/atrasadas, contagem
+  de atividades extras e o adiantamento médio geral — reaproveita os mesmos
+  cálculos já usados por objetivo. (O "Nº de replanejamentos" continua
+  disponível por Objetivo/Atividade no painel "Histórico de Alterações",
+  só não aparece mais agregado neste bloco.)
 - Modal de **confirmação** antes de excluir uma atividade extra (ação
   destrutiva), com Esc/clique-fora para cancelar.
 - Paleta de cores/tons (`Tone`, `TONE_META`, `ROLE_META` em `src/types.ts`,
