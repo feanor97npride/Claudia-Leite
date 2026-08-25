@@ -1,9 +1,9 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { Atividade, Objetivo } from '../../types';
-import { ACTIVITY_STATUS_META, TONE_META } from '../../types';
-import { computeAheadBehindPercent } from '../../lib/roadmap';
-import { formatShortDate } from '../../utils/date';
+import { TIMELINE_STATUS_META, TONE_META } from '../../types';
+import { computeAheadBehindPercent, timelineVisualStatus } from '../../lib/roadmap';
+import { formatShortDate, todayISO } from '../../utils/date';
 
 interface Props {
   atividade: Atividade;
@@ -63,7 +63,8 @@ export default function HoverPreviewCard({ atividade, objetivo, anchorRect, onMo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anchorRect]);
 
-  const meta = ACTIVITY_STATUS_META[atividade.status];
+  const status = timelineVisualStatus(atividade, todayISO());
+  const meta = TIMELINE_STATUS_META[status];
   const aheadPct = computeAheadBehindPercent(atividade);
 
   return (
@@ -83,7 +84,12 @@ export default function HoverPreviewCard({ atividade, objetivo, anchorRect, onMo
       </p>
 
       <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-        <span className="text-[9px] font-bold uppercase tracking-wide bg-slate-100 text-slate-600 rounded px-1.5 py-0.5">
+        <span
+          className={`text-[9px] font-bold uppercase tracking-wide rounded px-1.5 py-0.5 ${
+            status === 'planned' ? 'border' : ''
+          }`}
+          style={{ backgroundColor: meta.bg, color: meta.text, borderColor: meta.border }}
+        >
           {meta.label}
         </span>
         {atividade.kind === 'extra' && (

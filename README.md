@@ -206,27 +206,53 @@ auditoria que o próprio usuário não possa editar.
   `App.tsx`, propagado por `ReportEditor`/`RoadmapEditor`) — não é uma
   segunda cópia editável, é o mesmo formulário do Editor.
 - Hierarquia visual entre concluídas e não concluídas, tanto no Timeline
-  quanto no Editor: atividades concluídas ganham um ✓ verde, texto em
-  negrito e (no Timeline) a cor cheia/vibrante do objetivo com um leve anel
-  branco; não concluídas usam a mesma cor do objetivo só que na variante
-  "tint" (clara) já existente, com o texto na cor "text" do objetivo (o
-  mesmo par usado no cabeçalho de cada grupo) — ambos os pares
-  tint/text foram conferidos para manter contraste AA do WCAG (≥4.5:1,
-  a maioria bem acima). Deliberadamente **não** foi usado `opacity`
-  reduzido nem `filter: grayscale` na barra inteira: como o texto vive
-  dentro do mesmo elemento com opacidade reduzida, o contraste entre
-  texto e fundo cai proporcionalmente à opacidade (ex.: opacity 0.55 ≈
-  55% do contraste original) — trocar o PAR de cores em vez de
-  "apagar" o elemento evita esse problema. Transições usam
-  `transition-colors duration-200` para não trocar abruptamente ao
-  mudar o status. Sem dark mode: o app não tem suporte a tema escuro em
-  nenhuma tela ainda, então esse ponto não se aplica por ora.
+  quanto no Editor: atividades concluídas ganham um ✓ verde e texto em
+  negrito. Transições usam `transition-colors duration-200` para não
+  trocar abruptamente ao mudar o status. Sem dark mode: o app não tem
+  suporte a tema escuro em nenhuma tela ainda, então esse ponto não se
+  aplica por ora.
+- **Fase 1 do redesign da Timeline** — paleta de status com contraste
+  acessível (WCAG AA) e linha do "hoje", substituindo o esquema anterior
+  (cor do objetivo + "tint" para não concluída) por um esquema baseado em
+  **status**, já que a cor do objetivo continua identificável pelo
+  cabeçalho colorido de cada grupo:
+  - `TIMELINE_STATUS_META` (`src/types.ts`) define 4 estados visuais —
+    🟢 **Concluído** (`#15803d` sólido, texto branco), 🔵 **Em andamento**
+    (`#1d4ed8` sólido + uma textura sutil de hachura diagonal via
+    `repeating-linear-gradient`, texto branco), ⚪ **Não iniciado**
+    (contorno cinza-claro `#94a3b8` sobre fundo branco, texto
+    `#334155`) e 🔴 **Atrasado** (`#b91c1c` sólido, texto branco). Cada
+    par foi checado à mão (luminância relativa/fórmula do WCAG, mesmo
+    método já usado nos tokens `OBJETIVO_COLOR`) para garantir ≥4.5:1 —
+    inclusive a variante com hachura, testada no tom mais claro que a
+    listra branca semitransparente produz, não só na cor base sólida.
+  - "Atrasado" não existe como valor nativo de `ActivityStatus` (que só
+    tem `planned`/`in_progress`/`done`) — é **derivado** em
+    `timelineVisualStatus()` (`src/lib/roadmap.ts`): não concluída E
+    `plannedEnd` no passado. Reaproveitado pelo `RoadmapTimeline`, pelo
+    `HoverPreviewCard` e pelo `AtividadeDetailModal`, para o status
+    mostrado ser sempre consistente entre a barra, o preview de hover e o
+    modal de detalhes.
+  - Uma bolinha colorida ao lado do nome da atividade (mesma cor do
+    status) reforça a leitura mesmo antes de olhar a barra; ⚠ aparece
+    junto ao nome/barra quando atrasada.
+  - Linha vertical tracejada vermelha marcando a data de **hoje** sobre o
+    grid do Gantt, atravessando todas as linhas de atividades. Como as
+    colunas de mês usam `minmax(56px, 1fr)` (largura variável, não fixa),
+    a posição em pixels é **medida do DOM já renderizado** (mesma ideia
+    de duas passadas do `HoverPreviewCard`: mede a coluna do mês
+    correspondente via `getBoundingClientRect`, soma a fração do dia
+    dentro do mês) em vez de calculada a partir de uma largura suposta —
+    um `ResizeObserver` no grid recalcula a posição a cada mudança de
+    layout (resize da janela, entrar/sair da tela cheia). Não aparece
+    quando a data de hoje cai fora do intervalo de meses exibido.
 - Preview em hover (`HoverPreviewCard`) ao passar o mouse sobre uma
   atividade na Timeline (nome ou barra): aparece depois de 250ms parado
   (evita disparo acidental ao passar o mouse rápido), some depois de
   150ms sem estar sobre o item nem sobre o próprio card — mover o mouse
   de um para o outro conta como "ainda em cima", não pisca. Mostra nome
-  completo, objetivo, status, prazo, RACI, anotação e adiantamento (se
+  completo, objetivo, status (já com a paleta/rótulo de 4 estados acima,
+  incluindo "Atrasado"), prazo, RACI, anotação e adiantamento (se
   concluída); botão **"Ver detalhes →"** abre o mesmo
   `AtividadeDetailModal` do clique direto. Posicionamento em duas
   passadas: renderiza invisível, mede a altura real do card (varia com

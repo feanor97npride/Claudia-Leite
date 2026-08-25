@@ -1,4 +1,4 @@
-import type { Atividade, ActivityKind, Objetivo, ObjetivoId, RoadmapSnapshot } from '../types';
+import type { Atividade, ActivityKind, Objetivo, ObjetivoId, RoadmapSnapshot, TimelineVisualStatus } from '../types';
 import { currentWeekOfObjetivo, isWithinWeek, monthKey } from '../utils/date';
 
 // Objetivo/Atividade are now server-authoritative (see /api/objetivos,
@@ -43,6 +43,20 @@ export function monthColumnRange(
   const startIdx = startFound === -1 ? 0 : startFound;
   const endIdx = endFound === -1 ? months.length - 1 : endFound;
   return { startIdx, span: Math.max(1, endIdx - startIdx + 1) };
+}
+
+/**
+ * Which of the 4 Timeline visual states an atividade is in. "Atrasado" has
+ * no native status value (ActivityStatus is only planned/in_progress/done)
+ * so it's derived: not done AND past its planned end date. Checked before
+ * 'in_progress' so a late in-progress item reads as atrasado, not as
+ * merely "em andamento".
+ */
+export function timelineVisualStatus(a: Atividade, todayISO: string): TimelineVisualStatus {
+  if (a.status === 'done') return 'done';
+  if (a.plannedEnd && a.plannedEnd < todayISO) return 'atrasado';
+  if (a.status === 'in_progress') return 'in_progress';
+  return 'planned';
 }
 
 /** progress% = done planned / total planned, per objetivo. Extras never count. */

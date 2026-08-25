@@ -161,6 +161,29 @@ export const ACTIVITY_STATUS_META: Record<ActivityStatus, { label: string }> = {
   done: { label: 'Concluída' },
 };
 
+/** Roadmap Timeline's visual status — a 4th state ("atrasado") layered on
+ *  top of ActivityStatus by DERIVING it (status !== 'done' && plannedEnd in
+ *  the past), since the data model itself only has 3 native status values.
+ *  See lib/roadmap.ts timelineVisualStatus for the derivation. */
+export type TimelineVisualStatus = 'done' | 'in_progress' | 'atrasado' | 'planned';
+
+/** Each color/text pair below was checked by hand (relative-luminance WCAG
+ *  contrast, same method used for OBJETIVO_COLOR) to clear 4.5:1 — solid
+ *  fills use white text, the "planned" outline uses dark text on a pale
+ *  fill. `pattern: true` adds a subtle diagonal hatch (see RoadmapTimeline)
+ *  so "em andamento" reads as textured, not just a flat color, without
+ *  dropping below AA once the hatch is factored in (checked at its actual
+ *  opacity, not just the base color). */
+export const TIMELINE_STATUS_META: Record<
+  TimelineVisualStatus,
+  { label: string; bg: string; text: string; border?: string; pattern?: boolean }
+> = {
+  done: { label: 'Concluído', bg: '#15803d', text: '#ffffff' },
+  in_progress: { label: 'Em andamento', bg: '#1d4ed8', text: '#ffffff', pattern: true },
+  planned: { label: 'Não iniciado', bg: '#ffffff', text: '#334155', border: '#94a3b8' },
+  atrasado: { label: 'Atrasado', bg: '#b91c1c', text: '#ffffff' },
+};
+
 // --- Roadmap: frozen per-report progress snapshot ---
 export interface ObjetivoProgressSnapshot {
   objetivoId: ObjetivoId;

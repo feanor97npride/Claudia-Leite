@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import type { Atividade, Objetivo } from '../../types';
-import { ACTIVITY_STATUS_META } from '../../types';
-import { formatShortDate } from '../../utils/date';
+import { TIMELINE_STATUS_META } from '../../types';
+import { timelineVisualStatus } from '../../lib/roadmap';
+import { formatShortDate, todayISO } from '../../utils/date';
 
 interface Props {
   atividade: Atividade;
@@ -15,6 +16,9 @@ interface Props {
  *  Timeline — read-only summary plus a shortcut into the governed Editor,
  *  since the Timeline itself isn't an editing surface. */
 export default function AtividadeDetailModal({ atividade, objetivo, readOnly, onEdit, onClose }: Props) {
+  const status = timelineVisualStatus(atividade, todayISO());
+  const statusMeta = TIMELINE_STATUS_META[status];
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
@@ -52,8 +56,13 @@ export default function AtividadeDetailModal({ atividade, objetivo, readOnly, on
         </p>
 
         <div className="flex items-center gap-2 mb-4">
-          <span className="text-[10px] font-bold uppercase tracking-wide bg-slate-100 text-slate-600 rounded px-2 py-1">
-            {ACTIVITY_STATUS_META[atividade.status].label}
+          <span
+            className={`text-[10px] font-bold uppercase tracking-wide rounded px-2 py-1 ${
+              status === 'planned' ? 'border' : ''
+            }`}
+            style={{ backgroundColor: statusMeta.bg, color: statusMeta.text, borderColor: statusMeta.border }}
+          >
+            {statusMeta.label}
           </span>
           {atividade.kind === 'extra' && (
             <span className="text-[10px] font-bold uppercase tracking-wide bg-purple-100 text-purple-700 rounded px-2 py-1">
