@@ -62,14 +62,21 @@ acompanhamento das atividades da área de Sistemas (TI).
 
 ## Persistência de dados
 
-O relatório semanal (projetos, entregas, indicadores, texto livre) continua
-salvo no `localStorage` do navegador, namespaced por usuário — isso não
-mudou. Os **relatórios não sincronizam entre dispositivos/navegadores**,
-por não terem backend próprio nesta versão.
+O relatório semanal (projetos, entregas, indicadores, texto livre) e o
+**Roadmap por Objetivos/Atividades** vivem os dois num banco Postgres real
+(ver seção seguinte). O relatório semanal é privado por usuário — cada
+usuário só vê e edita seu próprio histórico, do mesmo jeito que já era com
+`localStorage` — mas agora **sincroniza entre dispositivos/navegadores/abas
+anônimas**, em vez de ficar preso a um único navegador.
 
-O **Roadmap por Objetivos/Atividades**, por outro lado, agora vive num banco
-Postgres real (ver seção seguinte) — é dado compartilhado entre todos os
-usuários, com controle de acesso e trilha de auditoria de verdade.
+Migração: relatórios salvos antes desta versão (só em `localStorage`) são
+recuperados automaticamente na primeira vez que o app carrega sem nenhum
+relatório no servidor para aquele usuário — ele lê o que ainda está no
+`localStorage` daquele navegador específico e envia para o banco (toast "N
+relatório(s) recuperado(s) do navegador para o servidor"). Isso só resgata o
+que sobrou no navegador que você tiver aberto no momento da migração; um
+relatório cujo navegador não foi mais aberto desde então não pode ser
+recuperado.
 
 ## Backend: autenticação, roles e governança do roadmap
 
@@ -99,6 +106,14 @@ auditoria que o próprio usuário não possa editar.
   preservada em `objetivo_versions`, nunca sobrescrita silenciosamente.
 - Campos RACI descritivos por atividade (Responsável/Executor), independentes
   da role de acesso ao sistema.
+- Relatório semanal (`reports`, `server/reports.ts`): `id`/`user_id`/
+  `week_start` como colunas, o restante do relatório (projetos, indicadores,
+  textos, snapshot congelado do roadmap) em `data jsonb` — evita alterar o
+  schema a cada campo novo do relatório. Sempre filtrado por `user_id` da
+  sessão autenticada; o `userId` que o cliente manda no corpo é ignorado.
+  Sem role própria: qualquer usuário autenticado (Admin ou Visualizador) lê e
+  escreve só o seu próprio histórico, do mesmo jeito que já era com
+  `localStorage`.
 
 **Front-end integrado à API:**
 - Tela de login (e-mail/senha) e troca de senha obrigatória no primeiro
@@ -109,6 +124,12 @@ auditoria que o próprio usuário não possa editar.
   (`src/lib/api.ts`), não mais do `localStorage`; erros e sucessos aparecem
   como toasts (`ToastContext`), e cada ação de salvar mostra estado de
   carregamento.
+- `App.tsx` carrega/grava o histórico de relatórios pela API
+  (`GET`/`POST /api/reports`, `DELETE /api/reports/:id`) em vez do
+  `localStorage` — autosave (debounce de 400ms), "+ Nova semana",
+  "Gerar snapshot", "Duplicar p/ próx. semana" e "Excluir" persistem no
+  servidor. `src/lib/storage.ts` (`localStorage`) só é lido uma vez, na
+  migração automática descrita acima.
 - Para o papel **Visualizador**, todos os controles de edição/exclusão do
   roadmap são ocultados na interface (além do bloqueio no servidor) — a tela
   mostra os mesmos dados em modo somente-leitura.

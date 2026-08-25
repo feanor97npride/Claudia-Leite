@@ -1,4 +1,13 @@
-import type { Atividade, AtividadePatch, AuditEntry, AuthedUser, Objetivo, ObjetivoId, ObjetivoVersion } from '../types';
+import type {
+  Atividade,
+  AtividadePatch,
+  AuditEntry,
+  AuthedUser,
+  Objetivo,
+  ObjetivoId,
+  ObjetivoVersion,
+  Report,
+} from '../types';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -85,5 +94,27 @@ export async function fetchAuditLog(
   entityId: string,
 ): Promise<{ entries: AuditEntry[]; replanCount: number }> {
   return request(`/api/audit-log?entityType=${entityType}&entityId=${encodeURIComponent(entityId)}`);
+}
+
+// --- Reports (weekly status report history) ---
+export async function fetchReports(): Promise<Report[]> {
+  const { reports } = await request<{ reports: Report[] }>('/api/reports');
+  return reports;
+}
+
+/** Create-or-update by report.id — mirrors the previous localStorage upsert
+ *  semantics (see src/lib/storage.ts, kept only as a one-time migration
+ *  source now). userId/createdAt/updatedAt in the response come from the
+ *  server, which is the source of truth for them. */
+export async function upsertReportApi(report: Report): Promise<Report> {
+  const { report: saved } = await request<{ report: Report }>('/api/reports', {
+    method: 'POST',
+    body: JSON.stringify(report),
+  });
+  return saved;
+}
+
+export function deleteReportApi(id: string): Promise<void> {
+  return request(`/api/reports/${id}`, { method: 'DELETE' });
 }
 

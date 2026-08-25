@@ -17,6 +17,7 @@ const STATIC_API_ROUTES: Record<string, string> = {
   '/api/objetivos': '/api/objetivos/index.ts',
   '/api/atividades': '/api/atividades/index.ts',
   '/api/audit-log': '/api/audit-log.ts',
+  '/api/reports': '/api/reports/index.ts',
 }
 
 function resolveApiFile(pathname: string): string | null {
@@ -24,6 +25,7 @@ function resolveApiFile(pathname: string): string | null {
   if (/^\/api\/objetivos\/[^/]+\/versions$/.test(pathname)) return '/api/objetivos/[id]/versions.ts'
   if (/^\/api\/objetivos\/[^/]+$/.test(pathname)) return '/api/objetivos/[id].ts'
   if (/^\/api\/atividades\/[^/]+$/.test(pathname)) return '/api/atividades/[id].ts'
+  if (/^\/api\/reports\/[^/]+$/.test(pathname)) return '/api/reports/[id].ts'
   return null
 }
 

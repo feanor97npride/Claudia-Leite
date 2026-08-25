@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Atividade, AtividadePatch, AuthedUser, Objetivo, ObjetivoId, Report, UserProfile } from './types';
 import { ROLE_META } from './types';
-import { deleteReport, getReports, saveReport } from './lib/storage';
+import { getReports } from './lib/storage';
 import { blankReport, duplicateForNextWeek } from './lib/factory';
 import { buildRoadmapSnapshot } from './lib/roadmap';
 import { todayISO } from './utils/date';
 import {
   createExtraAtividadeApi,
   deleteExtraAtividadeApi,
+  deleteReportApi,
   fetchAtividades,
   fetchObjetivos,
+  fetchReports,
   updateAtividadeApi,
   updateObjetivoApi,
+  upsertReportApi,
 } from './lib/api';
 import { useAuth } from './contexts/AuthContext';
 import { useToast } from './contexts/ToastContext';
@@ -36,6 +39,7 @@ export default function App() {
   const [atividades, setAtividades] = useState<Atividade[]>([]);
   const [objetivos, setObjetivos] = useState<Objetivo[]>([]);
   const [roadmapLoading, setRoadmapLoading] = useState(true);
+  const [reportsLoading, setReportsLoading] = useState(true);
   const [draft, setDraft] = useState<Report | null>(null);
   const [view, setView] = useState<View>('editor');
   const [exporting, setExporting] = useState(false);
@@ -46,16 +50,36 @@ export default function App() {
   useEffect(() => {
     if (!user || user.mustChangePassword) return;
     const profile = deriveProfile(user);
-    const existing = getReports(user.id);
-    setReports(existing);
-    if (existing.length > 0) {
-      setDraft(existing[0]);
-    } else {
-      const fresh = blankReport(profile);
-      saveReport(fresh);
-      setDraft(fresh);
-      setReports([fresh]);
-    }
+    let cancelled = false;
+
+    setReportsLoading(true);
+    (async () => {
+      try {
+        let serverReports = await fetchReports();
+        if (serverReports.length === 0) {
+          // First load against the DB-backed history: recover whatever this
+          // browser still has in localStorage (Bloco 3.2 follow-up — reports
+          // used to live only there) instead of starting from a blank slate.
+          const local = getReports(user.id);
+          const seed = local.length > 0 ? local : [blankReport(profile)];
+          const migrated: Report[] = [];
+          for (const r of seed) migrated.push(await upsertReportApi(r));
+          serverReports = migrated.sort((a, b) => b.weekStart.localeCompare(a.weekStart));
+          if (local.length > 0) {
+            showToast(`${local.length} relatório(s) recuperado(s) do navegador para o servidor.`);
+          }
+        }
+        if (cancelled) return;
+        setReports(serverReports);
+        setDraft(serverReports[0] ?? null);
+      } catch (err) {
+        if (!cancelled) {
+          showToast(err instanceof Error ? err.message : 'Não foi possível carregar o histórico de relatórios.', 'error');
+        }
+      } finally {
+        if (!cancelled) setReportsLoading(false);
+      }
+    })();
 
     setRoadmapLoading(true);
     Promise.all([fetchObjetivos(), fetchAtividades()])
@@ -65,6 +89,10 @@ export default function App() {
       })
       .catch((err) => showToast(err instanceof Error ? err.message : 'Não foi possível carregar o roadmap.', 'error'))
       .finally(() => setRoadmapLoading(false));
+
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.mustChangePassword]);
 
@@ -74,6 +102,7 @@ export default function App() {
     setObjetivos([]);
     setAtividades([]);
     setDraft(null);
+    setReportsLoading(true);
     setView('editor');
   }
 
@@ -98,40 +127,53 @@ export default function App() {
     setAtividades((prev) => prev.filter((a) => a.id !== id));
   }
 
+  function upsertIntoReports(saved: Report) {
+    setReports((prev) => {
+      const idx = prev.findIndex((r) => r.id === saved.id);
+      const copy = [...prev];
+      if (idx >= 0) copy[idx] = saved;
+      else copy.unshift(saved);
+      return copy.sort((a, b) => b.weekStart.localeCompare(a.weekStart));
+    });
+  }
+
   function updateDraft(next: Report) {
     const touched = { ...next, updatedAt: new Date().toISOString() };
     setDraft(touched);
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      saveReport(touched);
-      setReports((prev) => {
-        const idx = prev.findIndex((r) => r.id === touched.id);
-        const copy = [...prev];
-        if (idx >= 0) copy[idx] = touched;
-        else copy.unshift(touched);
-        return copy.sort((a, b) => b.weekStart.localeCompare(a.weekStart));
-      });
+      upsertReportApi(touched)
+        .then(upsertIntoReports)
+        .catch((err) => showToast(err instanceof Error ? err.message : 'Não foi possível salvar o relatório.', 'error'));
     }, 400);
   }
 
-  function handleGenerateSnapshot() {
+  async function handleGenerateSnapshot() {
     if (!draft || !user) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     const withSnapshot = { ...draft, roadmapSnapshot: buildRoadmapSnapshot(atividades, draft.weekStart, objetivos) };
-    saveReport(withSnapshot);
-    setDraft(withSnapshot);
-    setReports(getReports(user.id));
-    setView('snapshot');
+    try {
+      const saved = await upsertReportApi(withSnapshot);
+      setDraft(saved);
+      upsertIntoReports(saved);
+      setView('snapshot');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Não foi possível gerar o snapshot.', 'error');
+    }
   }
 
-  function handleNewWeek() {
+  async function handleNewWeek() {
     if (!user) return;
     const base = draft ?? reports[0];
     const fresh = base ? duplicateForNextWeek(base) : blankReport(deriveProfile(user));
-    saveReport(fresh);
-    setReports(getReports(user.id));
-    setDraft(fresh);
-    setView('editor');
+    try {
+      const saved = await upsertReportApi(fresh);
+      upsertIntoReports(saved);
+      setDraft(saved);
+      setView('editor');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Não foi possível criar a nova semana.', 'error');
+    }
   }
 
   function handleViewReport(report: Report) {
@@ -139,22 +181,29 @@ export default function App() {
     setView('snapshot');
   }
 
-  function handleDuplicateReport(report: Report) {
+  async function handleDuplicateReport(report: Report) {
     const fresh = duplicateForNextWeek(report);
-    saveReport(fresh);
-    if (user) setReports(getReports(user.id));
-    setDraft(fresh);
-    setView('editor');
+    try {
+      const saved = await upsertReportApi(fresh);
+      upsertIntoReports(saved);
+      setDraft(saved);
+      setView('editor');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Não foi possível duplicar o relatório.', 'error');
+    }
   }
 
-  function handleDeleteReport(report: Report) {
-    if (!user) return;
-    deleteReport(user.id, report.id);
-    const remaining = getReports(user.id);
-    setReports(remaining);
-    if (draft?.id === report.id) {
-      setDraft(remaining[0] ?? null);
-      setView('editor');
+  async function handleDeleteReport(report: Report) {
+    try {
+      await deleteReportApi(report.id);
+      const remaining = reports.filter((r) => r.id !== report.id);
+      setReports(remaining);
+      if (draft?.id === report.id) {
+        setDraft(remaining[0] ?? null);
+        setView('editor');
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Não foi possível excluir o relatório.', 'error');
     }
   }
 
@@ -255,14 +304,14 @@ export default function App() {
 
             <div className="flex gap-2">
               <button
-                onClick={handleNewWeek}
+                onClick={() => void handleNewWeek()}
                 className="text-sm font-medium text-slate-600 border border-slate-300 rounded-lg px-3 py-1.5 hover:bg-white bg-white"
               >
                 + Nova semana
               </button>
               {view === 'editor' && (
                 <button
-                  onClick={handleGenerateSnapshot}
+                  onClick={() => void handleGenerateSnapshot()}
                   className="text-sm font-medium bg-slate-900 text-white rounded-lg px-4 py-1.5 hover:bg-slate-800"
                 >
                   Gerar snapshot
@@ -289,25 +338,30 @@ export default function App() {
             </div>
           </div>
 
-          {view === 'editor' && draft && (
-            <fieldset disabled={editorDisabled}>
-              {roadmapLoading ? (
-                <p className="text-sm text-slate-400 italic mb-4">Carregando roadmap…</p>
-              ) : (
-                <ReportEditor
-                  report={draft}
-                  onChange={updateDraft}
-                  atividades={atividades}
-                  objetivos={objetivos}
-                  roadmapReadOnly={user.role === 'viewer'}
-                  onUpdateObjetivo={handleUpdateObjetivo}
-                  onUpdateAtividade={handleUpdateAtividade}
-                  onAddExtraAtividade={handleAddExtraAtividade}
-                  onRemoveExtraAtividade={handleRemoveExtraAtividade}
-                />
-              )}
-            </fieldset>
-          )}
+          {view === 'editor' &&
+            (reportsLoading ? (
+              <p className="text-sm text-slate-400 italic mb-4">Carregando relatório…</p>
+            ) : (
+              draft && (
+                <fieldset disabled={editorDisabled}>
+                  {roadmapLoading ? (
+                    <p className="text-sm text-slate-400 italic mb-4">Carregando roadmap…</p>
+                  ) : (
+                    <ReportEditor
+                      report={draft}
+                      onChange={updateDraft}
+                      atividades={atividades}
+                      objetivos={objetivos}
+                      roadmapReadOnly={user.role === 'viewer'}
+                      onUpdateObjetivo={handleUpdateObjetivo}
+                      onUpdateAtividade={handleUpdateAtividade}
+                      onAddExtraAtividade={handleAddExtraAtividade}
+                      onRemoveExtraAtividade={handleRemoveExtraAtividade}
+                    />
+                  )}
+                </fieldset>
+              )
+            ))}
 
           {view === 'timeline' &&
             (roadmapLoading ? (
@@ -327,13 +381,17 @@ export default function App() {
           <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
             Histórico de relatórios
           </h2>
-          <HistoryPanel
-            reports={reports}
-            activeReportId={draft?.id ?? null}
-            onView={handleViewReport}
-            onDuplicate={handleDuplicateReport}
-            onDelete={handleDeleteReport}
-          />
+          {reportsLoading ? (
+            <p className="text-sm text-slate-400 italic">Carregando…</p>
+          ) : (
+            <HistoryPanel
+              reports={reports}
+              activeReportId={draft?.id ?? null}
+              onView={handleViewReport}
+              onDuplicate={(r) => void handleDuplicateReport(r)}
+              onDelete={(r) => void handleDeleteReport(r)}
+            />
+          )}
         </aside>
       </main>
 
