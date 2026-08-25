@@ -126,10 +126,15 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                       <div key={atividade.id} className="contents">
                         <div
                           onClick={openDetail}
-                          className="border-b border-slate-100 px-2 py-1.5 text-slate-600 truncate cursor-pointer hover:bg-slate-50"
+                          className="border-b border-slate-100 px-2 py-1.5 text-slate-600 cursor-pointer hover:bg-slate-50 flex items-center gap-1 min-w-0"
                           title={`${group.objetivo.entregaLabel} — ${atividade.name} (clique para detalhes)`}
                         >
-                          {atividade.name}
+                          <span className="truncate">{atividade.name}</span>
+                          {atividade.kind === 'extra' && (
+                            <span className="text-[8px] font-bold uppercase tracking-wide bg-purple-100 text-purple-700 rounded px-1 py-0.5 shrink-0">
+                              Extra
+                            </span>
+                          )}
                         </div>
                         {before > 0 && (
                           <div className="border-b border-l border-slate-100" style={{ gridColumn: `span ${before}` }} />

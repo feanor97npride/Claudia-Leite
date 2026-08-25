@@ -187,7 +187,11 @@ auditoria que o próprio usuário não possa editar.
   real, ao contrário de uma imagem estática. Só entram no gráfico atividades
   com início e fim planejados definidos (sem inventar datas para o que
   ainda não foi planejado); respeita o mesmo week-scoping das atividades
-  extras. As atividades são agrupadas por macro objetivo (Diagnóstico,
+  extras — atividades extras entram no gráfico normalmente desde que
+  tenham um "Prazo" definido no Editor (não há distinção entre planejadas e
+  extras nesse filtro), e ganham uma tag roxa **"Extra"** ao lado do nome
+  para diferenciá-las das planejadas. As atividades são agrupadas por macro
+  objetivo (Diagnóstico,
   Governança, Operação, Estratégia Futura), cada grupo com uma linha de
   cabeçalho colorida (mesma cor das barras do Gantt) mostrando o nome do
   objetivo ao qual aquelas atividades pertencem. Botão "⤢ Tela cheia" no
