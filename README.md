@@ -115,12 +115,13 @@ auditoria que o próprio usuário não possa editar.
 - Campos RACI (Responsável/Executor) e o motivo de replanejamento aparecem
   no modo de edição do Objetivo/Atividade, com a mesma validação do servidor
   replicada no cliente para feedback imediato antes do round-trip de rede.
-- Uma Atividade pode ser reatribuída a outro Objetivo (`PATCH
-  /api/atividades/:id` com `objetivoId`) — restrito a Admin, auditado como
-  qualquer outro campo (registra o Objetivo antigo e o novo em "Histórico de
-  Alterações"). Usado para reorganizar itens entre Governança/Operação sem
-  editar o banco diretamente; não há um seletor dedicado na UI ainda, pois é
-  uma correção pontual, não um fluxo recorrente.
+- Uma Atividade pode ser reatribuída a outro Objetivo: no modo de edição do
+  Objetivo, o seletor **"Entrega"** em cada atividade lista os 4 objetivos —
+  ao trocar e salvar, a atividade passa a aparecer no card do novo objetivo
+  (`PATCH /api/atividades/:id` com `objetivoId`, restrito a Admin, auditado
+  como qualquer outro campo, registrando o Objetivo antigo e o novo em
+  "Histórico de Alterações"). Usado para reorganizar itens entre
+  Governança/Operação sem editar o banco diretamente.
 - Painel **"Histórico de Alterações"** (botão "🕘 Histórico" em cada Objetivo
   e em cada Atividade) — mostra a trilha de auditoria completa daquele item
   (campo, valor anterior/novo, classificação, motivo quando houver, usuário e

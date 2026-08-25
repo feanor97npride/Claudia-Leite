@@ -39,6 +39,7 @@ export interface ActivityDraft {
   completedAt?: string;
   raciAccountableName?: string;
   raciResponsibleName?: string;
+  objetivoId?: ObjetivoId;
   reason?: string;
 }
 
@@ -56,6 +57,7 @@ function AheadBehindBadge({ atividade }: { atividade: Atividade }) {
 
 interface AtividadeRowProps {
   atividade: Atividade;
+  objetivos: Objetivo[];
   projects: Project[];
   readOnly: boolean;
   editingObjetivo: boolean;
@@ -68,6 +70,7 @@ interface AtividadeRowProps {
 
 function AtividadeRow({
   atividade: a,
+  objetivos,
   projects,
   readOnly,
   editingObjetivo,
@@ -128,6 +131,7 @@ function AtividadeRow({
   const completedAtIsFuture = completedAtValue > todayISO();
   const raciAccountableValue = draft?.raciAccountableName ?? a.raciAccountableName ?? '';
   const raciResponsibleValue = draft?.raciResponsibleName ?? a.raciResponsibleName ?? '';
+  const objetivoIdValue = draft?.objetivoId ?? a.objetivoId;
 
   const replanningStart = editingObjetivo && !!a.plannedStart && plannedStartValue !== a.plannedStart;
   const replanningEnd = editingObjetivo && !!a.plannedEnd && plannedEndValue !== a.plannedEnd;
@@ -264,6 +268,21 @@ function AtividadeRow({
             />
           )}
           <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] text-slate-400 shrink-0">Entrega:</span>
+            <select
+              value={objetivoIdValue}
+              onChange={(e) => onDraftChange(a.id, { objetivoId: e.target.value as ObjetivoId })}
+              aria-label={`Mover atividade para outra entrega — ${a.name || 'atividade'}`}
+              className={`${INPUT_CLASS} shrink-0`}
+            >
+              {objetivos.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.entregaLabel} — {o.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[10px] text-slate-400 shrink-0">Responsável (Accountable):</span>
             <input
               value={raciAccountableValue}
@@ -325,6 +344,7 @@ function AtividadeRow({
 
 interface ObjetivoCardProps {
   objetivo: Objetivo;
+  objetivos: Objetivo[];
   atividades: Atividade[];
   projects: Project[];
   readOnly: boolean;
@@ -337,6 +357,7 @@ interface ObjetivoCardProps {
 
 function ObjetivoCard({
   objetivo,
+  objetivos,
   atividades,
   projects,
   readOnly,
@@ -451,6 +472,7 @@ function ObjetivoCard({
           patch.raciAccountableName = draft.raciAccountableName || null;
         if (draft.raciResponsibleName !== undefined && draft.raciResponsibleName !== (a.raciResponsibleName ?? ''))
           patch.raciResponsibleName = draft.raciResponsibleName || null;
+        if (draft.objetivoId !== undefined && draft.objetivoId !== a.objetivoId) patch.objetivoId = draft.objetivoId;
         if (draft.reason?.trim()) patch.reason = draft.reason.trim();
         if (Object.keys(patch).length > 0) await onUpdateAtividade(a.id, patch);
       }
@@ -596,6 +618,7 @@ function ObjetivoCard({
             <AtividadeRow
               key={a.id}
               atividade={a}
+              objetivos={objetivos}
               projects={projects}
               readOnly={readOnly}
               editingObjetivo={editing}
@@ -695,6 +718,7 @@ export default function RoadmapEditor({
         <ObjetivoCard
           key={objetivo.id}
           objetivo={objetivo}
+          objetivos={objetivos}
           atividades={visibleAtividades}
           projects={projects}
           readOnly={readOnly}
