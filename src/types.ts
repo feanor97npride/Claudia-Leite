@@ -92,6 +92,16 @@ export interface ObjetivoVersion {
 // --- Roadmap: Objetivos (fixed quarters) ---
 export type ObjetivoId = 'diagnostico' | 'governanca' | 'operacao' | 'estrategia_futura';
 
+/** One fixed color per Objetivo, reused wherever an objetivo needs a visual
+ *  identity (e.g. the timeline Gantt) — a single named source instead of
+ *  each component picking its own shade. */
+export const OBJETIVO_COLOR: Record<ObjetivoId, { bar: string; tint: string; text: string }> = {
+  diagnostico: { bar: '#16a34a', tint: '#e9f7ee', text: '#15803d' },
+  governanca: { bar: '#1d4ed8', tint: '#eaefff', text: '#1e40af' },
+  operacao: { bar: '#0d9488', tint: '#e6f6f4', text: '#0f766e' },
+  estrategia_futura: { bar: '#f59e0b', tint: '#fef3e0', text: '#b45309' },
+};
+
 export interface Objetivo {
   id: ObjetivoId;
   name: string;

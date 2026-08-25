@@ -128,6 +128,13 @@ auditoria que o próprio usuário não possa editar.
   só não aparece mais agregado neste bloco.)
 - Modal de **confirmação** antes de excluir uma atividade extra (ação
   destrutiva), com Esc/clique-fora para cancelar.
+- Bloco **"Roadmap — Visão Timeline"**: um Gantt gerado ao vivo a partir dos
+  períodos dos Objetivos e das datas planejadas das Atividades — serve de
+  referência do roadmap proposto (equivalente ao Gantt gerado no início do
+  projeto), mas sempre em sincronia com o dado real, ao contrário de uma
+  imagem estática. Só entram no gráfico atividades com início e fim
+  planejados definidos (sem inventar datas para o que ainda não foi
+  planejado); respeita o mesmo week-scoping das atividades extras.
 - Paleta de cores/tons (`Tone`, `TONE_META`, `ROLE_META` em `src/types.ts`,
   ao lado de `STATUS_META`/`ACTIVITY_STATUS_META` já existentes) como
   constantes únicas reutilizadas por `RoadmapEditor`, `GovernanceIndicators`
