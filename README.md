@@ -205,6 +205,22 @@ auditoria que o próprio usuário não possa editar.
   destaca brevemente a linha daquela atividade (`focusAtividade` em
   `App.tsx`, propagado por `ReportEditor`/`RoadmapEditor`) — não é uma
   segunda cópia editável, é o mesmo formulário do Editor.
+- Hierarquia visual entre concluídas e não concluídas, tanto no Timeline
+  quanto no Editor: atividades concluídas ganham um ✓ verde, texto em
+  negrito e (no Timeline) a cor cheia/vibrante do objetivo com um leve anel
+  branco; não concluídas usam a mesma cor do objetivo só que na variante
+  "tint" (clara) já existente, com o texto na cor "text" do objetivo (o
+  mesmo par usado no cabeçalho de cada grupo) — ambos os pares
+  tint/text foram conferidos para manter contraste AA do WCAG (≥4.5:1,
+  a maioria bem acima). Deliberadamente **não** foi usado `opacity`
+  reduzido nem `filter: grayscale` na barra inteira: como o texto vive
+  dentro do mesmo elemento com opacidade reduzida, o contraste entre
+  texto e fundo cai proporcionalmente à opacidade (ex.: opacity 0.55 ≈
+  55% do contraste original) — trocar o PAR de cores em vez de
+  "apagar" o elemento evita esse problema. Transições usam
+  `transition-colors duration-200` para não trocar abruptamente ao
+  mudar o status. Sem dark mode: o app não tem suporte a tema escuro em
+  nenhuma tela ainda, então esse ponto não se aplica por ora.
 - Paleta de cores/tons (`Tone`, `TONE_META`, `ROLE_META` em `src/types.ts`,
   ao lado de `STATUS_META`/`ACTIVITY_STATUS_META` já existentes) como
   constantes únicas reutilizadas por `RoadmapEditor`, `GovernanceIndicators`

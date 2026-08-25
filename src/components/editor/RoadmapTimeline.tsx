@@ -122,13 +122,21 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                     const before = range.startIdx;
                     const after = months.length - range.startIdx - range.span;
                     const openDetail = () => setSelected({ atividade, objetivo: group.objetivo });
+                    const isDone = atividade.status === 'done';
                     return (
                       <div key={atividade.id} className="contents">
                         <div
                           onClick={openDetail}
-                          className="border-b border-slate-100 px-2 py-1.5 text-slate-600 cursor-pointer hover:bg-slate-50 flex items-center gap-1 min-w-0"
+                          className={`border-b border-slate-100 px-2 py-1.5 cursor-pointer hover:bg-slate-50 flex items-center gap-1 min-w-0 transition-colors duration-200 ease-out ${
+                            isDone ? 'text-slate-900 font-semibold' : 'text-slate-500'
+                          }`}
                           title={`${group.objetivo.entregaLabel} — ${atividade.name} (clique para detalhes)`}
                         >
+                          {isDone && (
+                            <span aria-hidden="true" className="text-emerald-600 shrink-0">
+                              ✓
+                            </span>
+                          )}
                           <span className="truncate">{atividade.name}</span>
                           {atividade.kind === 'extra' && (
                             <span className="text-[8px] font-bold uppercase tracking-wide bg-purple-100 text-purple-700 rounded px-1 py-0.5 shrink-0">
@@ -143,13 +151,27 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                           className="border-b border-l border-slate-100 relative py-0.5"
                           style={{ gridColumn: `span ${range.span}` }}
                         >
+                          {/* Done: full-strength objetivo color (bar) + a check for
+                             reinforcement. Not done: the same objetivo's lighter
+                             "tint" background with its own dark "text" color — a
+                             real color swap, not an opacity/grayscale filter, so
+                             the WCAG AA contrast of the label doesn't get diluted
+                             by compositing toward the page background (opacity
+                             scales down foreground/background contrast together;
+                             tint+text was already designed as a legible pair). */}
                           <button
                             type="button"
                             onClick={openDetail}
-                            className="absolute inset-y-1 left-0.5 right-0.5 rounded flex items-center px-1.5 text-white text-[10px] font-semibold truncate hover:brightness-110 transition-[filter]"
-                            style={{ backgroundColor: color.bar }}
+                            className={`absolute inset-y-1 left-0.5 right-0.5 rounded flex items-center gap-1 px-1.5 text-[10px] font-semibold truncate hover:brightness-110 transition-colors duration-200 ease-out ${
+                              isDone ? 'ring-1 ring-white/60 shadow-sm' : ''
+                            }`}
+                            style={{
+                              backgroundColor: isDone ? color.bar : color.tint,
+                              color: isDone ? '#ffffff' : color.text,
+                            }}
                           >
-                            {atividade.name}
+                            {isDone && <span aria-hidden="true">✓</span>}
+                            <span className="truncate">{atividade.name}</span>
                           </button>
                         </div>
                         {after > 0 && (

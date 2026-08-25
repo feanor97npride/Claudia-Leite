@@ -149,11 +149,16 @@ function AtividadeRow({
   const replanningStart = editingObjetivo && !!a.plannedStart && plannedStartValue !== a.plannedStart;
   const replanningEnd = editingObjetivo && !!a.plannedEnd && plannedEndValue !== a.plannedEnd;
   const needsReason = replanningStart || replanningEnd;
+  const isDone = a.status === 'done';
 
   return (
     <div
-      className={`flex flex-col gap-1 rounded-lg transition-colors ${
-        highlighted ? 'ring-2 ring-amber-400 bg-amber-50/60 -mx-1 px-1 py-1' : ''
+      className={`flex flex-col gap-1 rounded-lg transition-colors duration-200 ease-out ${
+        highlighted
+          ? 'ring-2 ring-amber-400 bg-amber-50/60 -mx-1 px-1 py-1'
+          : isDone
+            ? 'bg-emerald-50/50 -mx-1 px-1 py-1'
+            : ''
       }`}
       data-testid={`atividade-row-${a.id}`}
     >
@@ -170,7 +175,18 @@ function AtividadeRow({
             className={`flex-1 min-w-[120px] ${INPUT_CLASS}`}
           />
         ) : (
-          <p className="flex-1 text-xs text-slate-700 leading-snug min-w-[120px]">{a.name}</p>
+          <p
+            className={`flex-1 text-xs leading-snug min-w-[120px] flex items-center gap-1 ${
+              isDone ? 'text-slate-900 font-semibold' : 'text-slate-700'
+            }`}
+          >
+            {isDone && (
+              <span aria-hidden="true" className="text-emerald-600 shrink-0">
+                ✓
+              </span>
+            )}
+            <span>{a.name}</span>
+          </p>
         )}
         {a.kind === 'extra' && (
           <span className="text-[9px] font-bold uppercase tracking-wide bg-purple-100 text-purple-700 rounded px-1.5 py-0.5 shrink-0">
