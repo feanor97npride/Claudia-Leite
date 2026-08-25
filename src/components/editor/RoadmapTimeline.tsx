@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Atividade, Objetivo, ObjetivoId, TimelineVisualStatus } from '../../types';
 import { OBJETIVO_COLOR, TIMELINE_STATUS_META } from '../../types';
-import { atividadesForObjetivo, computeObjetivoProgress, isVisibleThisWeek, monthColumnRange, timelineVisualStatus } from '../../lib/roadmap';
+import {
+  atividadesForObjetivo,
+  computeBarFillPercent,
+  computeObjetivoProgress,
+  isVisibleThisWeek,
+  monthColumnRange,
+  timelineVisualStatus,
+} from '../../lib/roadmap';
 import { monthKey, monthKeyLabel, monthsBetween, todayISO } from '../../utils/date';
 import AtividadeDetailModal from './AtividadeDetailModal';
 import HoverPreviewCard from './HoverPreviewCard';
@@ -253,6 +260,11 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
     }))
     .filter((group) => group.rows.length > 0);
 
+  // Zebra striping index — a plain counter (not state) incremented in
+  // render order as rows are mapped below, so alternating rows read
+  // consistently regardless of which groups are collapsed/filtered out.
+  let rowIndex = -1;
+
   return (
     <section
       ref={containerRef}
@@ -293,7 +305,7 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                     type="button"
                     onClick={() => toggleInSet(setCategoriaFilter, o.id)}
                     aria-pressed={active}
-                    className={`flex items-center gap-1 rounded-full px-2 py-0.5 border transition-colors ${
+                    className={`flex items-center gap-1 rounded-full px-2 py-0.5 border transition-colors cursor-pointer ${
                       active ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
@@ -314,7 +326,7 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                     type="button"
                     onClick={() => toggleInSet(setStatusFilter, s)}
                     aria-pressed={active}
-                    className={`flex items-center gap-1 rounded-full px-2 py-0.5 border transition-colors ${
+                    className={`flex items-center gap-1 rounded-full px-2 py-0.5 border transition-colors cursor-pointer ${
                       active ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
@@ -338,7 +350,7 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                       type="button"
                       onClick={() => toggleInSet(setResponsavelFilter, name)}
                       aria-pressed={active}
-                      className={`rounded-full px-2 py-0.5 border transition-colors ${
+                      className={`rounded-full px-2 py-0.5 border transition-colors cursor-pointer ${
                         active ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-50'
                       }`}
                     >
@@ -371,7 +383,9 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
             className="grid text-[11px] min-w-[720px] relative"
             style={{ gridTemplateColumns: `176px repeat(${months.length}, minmax(56px, 1fr))` }}
           >
-            <div className="bg-slate-900 text-white font-semibold px-2 py-1.5 rounded-tl-md">Atividade</div>
+            <div className="sticky left-0 z-20 bg-slate-900 text-white font-semibold px-2 py-1.5 rounded-tl-md shadow-[3px_0_6px_-2px_rgba(0,0,0,0.35)]">
+              Atividade
+            </div>
             {months.map((m, i) => (
               <div
                 key={m}
@@ -407,7 +421,7 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                     type="button"
                     onClick={() => toggleCollapse(group.objetivo.id)}
                     aria-expanded={!isCollapsed}
-                    className="w-full flex items-center justify-between gap-2 px-2 py-1 font-semibold border-b text-left"
+                    className="w-full flex items-center justify-between gap-2 px-2 py-1 font-semibold border-b text-left cursor-pointer hover:brightness-95 transition-[filter]"
                     style={{ backgroundColor: color.tint, color: color.text, borderColor: color.bar, gridColumn: `span ${months.length + 1}` }}
                   >
                     <span className="flex items-center gap-1.5">
@@ -419,6 +433,8 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                     </span>
                   </button>
                   {!isCollapsed && group.rows.map(({ atividade, range }) => {
+                    rowIndex++;
+                    const zebra = rowIndex % 2 === 1;
                     const before = range.startIdx;
                     const after = months.length - range.startIdx - range.span;
                     const openDetail = () => {
@@ -429,6 +445,7 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                     const status = timelineVisualStatus(atividade, today);
                     const statusMeta = TIMELINE_STATUS_META[status];
                     const isDone = status === 'done';
+                    const fillPercent = computeBarFillPercent(atividade, today);
                     const handleClick = (e: React.MouseEvent<HTMLElement>) => {
                       if (isTouch) {
                         handleItemTap(atividade, group.objetivo, e.currentTarget);
@@ -445,7 +462,9 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                           onClick={handleClick}
                           onMouseEnter={handleMouseEnter}
                           onMouseLeave={scheduleHide}
-                          className={`border-b border-slate-100 px-2 py-1.5 cursor-pointer hover:bg-slate-50 flex items-center gap-1.5 min-w-0 transition-colors duration-200 ease-out ${
+                          className={`sticky left-0 z-[15] shadow-[3px_0_6px_-2px_rgba(0,0,0,0.12)] border-b border-slate-100 px-2 py-2.5 cursor-pointer hover:bg-slate-100 flex items-center gap-1.5 min-w-0 transition-colors duration-200 ease-out ${
+                            zebra ? 'bg-slate-50' : 'bg-white'
+                          } ${
                             isDone
                               ? 'text-slate-900 font-semibold'
                               : status === 'atrasado'
@@ -472,7 +491,7 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                               ⚠
                             </span>
                           )}
-                          <span className="truncate">{atividade.name}</span>
+                          <span className="flex-1 min-w-0 truncate">{atividade.name}</span>
                           {atividade.kind === 'extra' && (
                             <span className="text-[8px] font-bold uppercase tracking-wide bg-purple-100 text-purple-700 rounded px-1 py-0.5 shrink-0">
                               Extra
@@ -480,10 +499,13 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                           )}
                         </div>
                         {before > 0 && (
-                          <div className="border-b border-l border-slate-100" style={{ gridColumn: `span ${before}` }} />
+                          <div
+                            className={`border-b border-l border-slate-100 ${zebra ? 'bg-slate-50/60' : ''}`}
+                            style={{ gridColumn: `span ${before}` }}
+                          />
                         )}
                         <div
-                          className="border-b border-l border-slate-100 relative py-0.5"
+                          className={`border-b border-l border-slate-100 relative py-0.5 ${zebra ? 'bg-slate-50/60' : ''}`}
                           style={{ gridColumn: `span ${range.span}` }}
                         >
                           {/* Status-based palette (TIMELINE_STATUS_META), not the
@@ -503,7 +525,7 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                             onClick={handleClick}
                             onMouseEnter={handleMouseEnter}
                             onMouseLeave={scheduleHide}
-                            className={`absolute inset-y-1 left-0.5 right-0.5 rounded flex items-center gap-1 px-1.5 text-[10px] font-semibold truncate hover:brightness-110 transition-colors duration-200 ease-out ${
+                            className={`absolute inset-y-1 left-0.5 right-0.5 rounded flex items-center gap-1 px-1.5 text-[10px] font-semibold cursor-pointer hover:brightness-110 hover:ring-2 hover:ring-black/10 transition-all duration-200 ease-out ${
                               isDone ? 'ring-1 ring-white/60 shadow-sm' : ''
                             } ${status === 'planned' ? 'border-2' : ''}`}
                             style={{
@@ -517,11 +539,25 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                           >
                             {isDone && <span aria-hidden="true">✓</span>}
                             {status === 'atrasado' && <span aria-hidden="true">⚠</span>}
-                            <span className="truncate">{atividade.name}</span>
+                            <span className="flex-1 min-w-0 truncate">{atividade.name}</span>
+                            {/* % do prazo planejado já decorrido (proxy de progresso —
+                               não há um campo de "% concluído" por atividade; ver
+                               computeBarFillPercent). Tira fina no rodapé da barra,
+                               fora da linha do texto, então nunca reduz o contraste
+                               do rótulo. */}
+                            <div
+                              aria-hidden="true"
+                              className="absolute left-0 right-0 bottom-0 h-[3px] rounded-b bg-black/15 overflow-hidden"
+                            >
+                              <div className="h-full bg-white/70" style={{ width: `${fillPercent}%` }} />
+                            </div>
                           </button>
                         </div>
                         {after > 0 && (
-                          <div className="border-b border-l border-slate-100" style={{ gridColumn: `span ${after}` }} />
+                          <div
+                            className={`border-b border-l border-slate-100 ${zebra ? 'bg-slate-50/60' : ''}`}
+                            style={{ gridColumn: `span ${after}` }}
+                          />
                         )}
                       </div>
                     );

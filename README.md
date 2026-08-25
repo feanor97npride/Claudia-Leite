@@ -276,6 +276,46 @@ auditoria que o próprio usuário não possa editar.
   - O indicador automático de atraso (🔴, Fase 1) segue valendo aqui sem
     mudança — é a mesma derivação (`timelineVisualStatus`), agora também
     disponível como opção do filtro de Status.
+- **Fase 3 do redesign da Timeline** — polimento visual/interação
+  (`RoadmapTimeline.tsx`), complementar às Fases 1-2:
+  - **Truncamento explícito** na coluna Atividade e no rótulo da barra: o
+    nome vira `<span className="flex-1 min-w-0 truncate">` (antes o
+    `truncate` estava num container flex com múltiplos irmãos — sem
+    `flex-1 min-w-0` no próprio texto ele não colapsava de forma
+    confiável), garantindo "…" em nomes longos; o fallback para ver o
+    nome inteiro é o tooltip nativo (`title`) e, num hover mais demorado,
+    o preview da Fase 1.
+  - **Cursor pointer + hover visível** em barras, nomes e cabeçalhos de
+    grupo: barra ganhou `hover:brightness-110` + `hover:ring-2
+    ring-black/10`, cabeçalho de grupo ganhou `hover:brightness-95`, e
+    `cursor-pointer` explícito em todos (bar, nome, cabeçalho, chips de
+    filtro) em vez de depender do estilo padrão do navegador para
+    `<button>`.
+  - **Preenchimento parcial nas barras** — uma tira fina (3px) no rodapé
+    de cada barra mostra o quanto do PRAZO PLANEJADO já decorreu
+    (`computeBarFillPercent` em `lib/roadmap.ts`): não existe um campo de
+    "% concluído" por atividade no modelo de dados (status é só
+    planejada/em andamento/concluída), então esse é o mesmo proxy que
+    ferramentas de Gantt clássicas mostram na ausência desse campo —
+    concluída sempre 100%, sem prazo definido sempre 0%. Fica no rodapé,
+    fora da linha do texto, para nunca reduzir o contraste do rótulo (o
+    mesmo cuidado de WCAG das Fases 1-2, só que aqui resolvido por
+    posição em vez de por escolha de cor).
+  - **Zebra striping** sutil nas linhas (`bg-slate-50`/`bg-white`
+    alternando), calculado por um contador de ordem de renderização (não
+    por índice do array) para continuar alternando corretamente mesmo com
+    grupos recolhidos ou filtrados.
+  - **Coluna "Atividade" fixa** (`position: sticky; left: 0`) durante o
+    scroll horizontal do Gantt, com uma sombra de separação sutil na borda
+    direita (`shadow-[3px_0_6px_-2px_...]`) — antes essa coluna rolava
+    junto com os meses; testado rolando programaticamente e conferindo
+    `getComputedStyle` (`position: sticky` + `left` inalterado) e a
+    própria sombra aplicada.
+  - **Espaçamento vertical maior** entre linhas (`py-1.5` → `py-2.5` na
+    célula do nome — as demais células da mesma linha esticam junto por
+    causa do `align-items: stretch` padrão do Grid), passando de ~24px
+    para ~37px de altura por linha — mais fácil de tocar com precisão em
+    touch, sem inchar demais uma visão que já é densa por natureza.
 - Preview em hover (`HoverPreviewCard`) ao passar o mouse sobre uma
   atividade na Timeline (nome ou barra): aparece depois de 250ms parado
   (evita disparo acidental ao passar o mouse rápido), some depois de

@@ -59,6 +59,25 @@ export function timelineVisualStatus(a: Atividade, todayISO: string): TimelineVi
   return 'planned';
 }
 
+/**
+ * How much of an atividade's own Gantt bar should read as "filled", 0-100.
+ * There's no per-atividade completion percentage in the data model (status
+ * is only planned/in_progress/done) — so this is the % of the atividade's
+ * OWN planned window that has already elapsed (clamped to [0,100]), the
+ * same "expected progress" proxy classic Gantt tools show when no explicit
+ * %-complete field exists. A done atividade is always 100% regardless of
+ * dates; one with no planned window at all shows 0%.
+ */
+export function computeBarFillPercent(a: Atividade, todayISO: string): number {
+  if (a.status === 'done') return 100;
+  if (!a.plannedStart || !a.plannedEnd) return 0;
+  const start = new Date(a.plannedStart + 'T00:00:00').getTime();
+  const end = new Date(a.plannedEnd + 'T00:00:00').getTime();
+  const now = new Date(todayISO + 'T00:00:00').getTime();
+  if (end <= start) return 0;
+  return Math.max(0, Math.min(100, Math.round(((now - start) / (end - start)) * 100)));
+}
+
 /** progress% = done planned / total planned, per objetivo. Extras never count. */
 export function computeObjetivoProgress(objetivoId: ObjetivoId, atividades: Atividade[]): number {
   const planned = atividades.filter((a) => a.objetivoId === objetivoId && a.kind === 'planned');
