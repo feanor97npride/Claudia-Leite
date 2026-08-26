@@ -77,10 +77,16 @@ export async function updateAtividadeApi(id: string, patch: AtividadePatch): Pro
   return atividade;
 }
 
-export async function createExtraAtividadeApi(objetivoId: ObjetivoId, name: string, weekStart: string): Promise<Atividade> {
+export async function createExtraAtividadeApi(
+  objetivoId: ObjetivoId,
+  name: string,
+  weekStart: string,
+  plannedStart?: string,
+  plannedEnd?: string,
+): Promise<Atividade> {
   const { atividade } = await request<{ atividade: Atividade }>('/api/atividades', {
     method: 'POST',
-    body: JSON.stringify({ objetivoId, name, weekStart }),
+    body: JSON.stringify({ objetivoId, name, weekStart, plannedStart, plannedEnd }),
   });
   return atividade;
 }

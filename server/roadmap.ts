@@ -15,6 +15,12 @@ export interface ObjetivoRow {
   totalWeeks: number;
 }
 
+export interface SubtaskRow {
+  id: string;
+  name: string;
+  percent: number;
+}
+
 export interface AtividadeRow {
   id: string;
   objetivoId: string;
@@ -32,6 +38,8 @@ export interface AtividadeRow {
    *  Used only to hide extras from the live Roadmap editor once their week
    *  passes; never affects audit history, past snapshots, or progress %. */
   weekStart: string | null;
+  subtasks: SubtaskRow[];
+  colorOverride: string | null;
 }
 
 function mapObjetivo(r: {
@@ -67,6 +75,8 @@ function mapAtividade(r: {
   raci_accountable_name: string | null;
   raci_responsible_name: string | null;
   week_start: string | null;
+  subtasks: SubtaskRow[] | null;
+  color_override: string | null;
 }): AtividadeRow {
   return {
     id: r.id,
@@ -81,6 +91,8 @@ function mapAtividade(r: {
     raciAccountableName: r.raci_accountable_name,
     raciResponsibleName: r.raci_responsible_name,
     weekStart: r.week_start,
+    subtasks: r.subtasks ?? [],
+    colorOverride: r.color_override,
   };
 }
 
@@ -185,14 +197,20 @@ export async function createExtraAtividade(
   objetivoId: string,
   name: string,
   weekStart: string | null,
+  plannedStart: string | null = null,
+  plannedEnd: string | null = null,
 ): Promise<AtividadeRow> {
   requireRole(user, 'admin');
   const { rows: objRows } = await pool.query('SELECT id FROM objetivos WHERE id = $1', [objetivoId]);
   if (!objRows[0]) throw new HttpError(404, 'Objetivo não encontrado.');
+  if (plannedStart && plannedEnd && !(plannedStart < plannedEnd)) {
+    throw new HttpError(400, 'A data de início planejada deve ser anterior à data de fim planejada.');
+  }
 
   const { rows } = await pool.query(
-    `INSERT INTO atividades (objetivo_id, name, status, kind, week_start) VALUES ($1, $2, 'planned', 'extra', $3) RETURNING *`,
-    [objetivoId, name, weekStart],
+    `INSERT INTO atividades (objetivo_id, name, status, kind, week_start, planned_start, planned_end)
+     VALUES ($1, $2, 'planned', 'extra', $3, $4, $5) RETURNING *`,
+    [objetivoId, name, weekStart, plannedStart, plannedEnd],
   );
   const created = mapAtividade(rows[0]);
   await recordAudit({
@@ -234,6 +252,8 @@ export async function updateAtividade(
     plannedEnd?: string | null;
     raciAccountableName?: string | null;
     raciResponsibleName?: string | null;
+    subtasks?: SubtaskRow[];
+    colorOverride?: string | null;
     objetivoId?: string;
     reason?: string;
   },
@@ -259,6 +279,8 @@ export async function updateAtividade(
     plannedEnd: patch.plannedEnd !== undefined ? patch.plannedEnd : current.plannedEnd,
     raciAccountableName: patch.raciAccountableName !== undefined ? patch.raciAccountableName : current.raciAccountableName,
     raciResponsibleName: patch.raciResponsibleName !== undefined ? patch.raciResponsibleName : current.raciResponsibleName,
+    subtasks: patch.subtasks !== undefined ? patch.subtasks : current.subtasks,
+    colorOverride: patch.colorOverride !== undefined ? patch.colorOverride : current.colorOverride,
     objetivoId: patch.objetivoId !== undefined ? patch.objetivoId : current.objetivoId,
   };
 
@@ -285,8 +307,9 @@ export async function updateAtividade(
 
   await pool.query(
     `UPDATE atividades SET name = $1, note = $2, status = $3, completed_at = $4, planned_start = $5,
-       planned_end = $6, raci_accountable_name = $7, raci_responsible_name = $8, objetivo_id = $9, updated_at = now()
-     WHERE id = $10`,
+       planned_end = $6, raci_accountable_name = $7, raci_responsible_name = $8, objetivo_id = $9,
+       subtasks = $10, color_override = $11, updated_at = now()
+     WHERE id = $12`,
     [
       next.name,
       next.note,
@@ -297,6 +320,8 @@ export async function updateAtividade(
       next.raciAccountableName,
       next.raciResponsibleName,
       next.objetivoId,
+      JSON.stringify(next.subtasks),
+      next.colorOverride,
       id,
     ],
   );
@@ -310,8 +335,20 @@ export async function updateAtividade(
     ['plannedEnd', current.plannedEnd, next.plannedEnd],
     ['raciAccountableName', current.raciAccountableName, next.raciAccountableName],
     ['raciResponsibleName', current.raciResponsibleName, next.raciResponsibleName],
+    ['colorOverride', current.colorOverride, next.colorOverride],
     ['objetivoId', current.objetivoId, next.objetivoId],
   ];
+  if (JSON.stringify(current.subtasks) !== JSON.stringify(next.subtasks)) {
+    await recordAudit({
+      entityType: 'atividade',
+      entityId: id,
+      field: 'subtasks',
+      oldValue: `${current.subtasks.length} subtarefa(s)`,
+      newValue: `${next.subtasks.length} subtarefa(s)`,
+      reason: null,
+      user,
+    });
+  }
   for (const [field, oldVal, newVal] of fieldPairs) {
     if (oldVal !== newVal) {
       const reason = field === 'plannedStart' || field === 'plannedEnd' ? (patch.reason ?? null) : null;

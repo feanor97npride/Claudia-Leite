@@ -125,8 +125,8 @@ export default function App() {
     setAtividades((prev) => prev.map((a) => (a.id === id ? updated : a)));
   }
 
-  async function handleAddExtraAtividade(objetivoId: ObjetivoId, name: string) {
-    const created = await createExtraAtividadeApi(objetivoId, name, draft?.weekStart ?? todayISO());
+  async function handleAddExtraAtividade(objetivoId: ObjetivoId, name: string, plannedStart?: string, plannedEnd?: string) {
+    const created = await createExtraAtividadeApi(objetivoId, name, draft?.weekStart ?? todayISO(), plannedStart, plannedEnd);
     setAtividades((prev) => [...prev, created]);
     return created;
   }
@@ -422,6 +422,8 @@ export default function App() {
                 currentWeekStart={currentWeekStartISO()}
                 readOnly={user.role === 'viewer'}
                 onEditAtividade={handleEditAtividadeFromTimeline}
+                onUpdateAtividade={handleUpdateAtividade}
+                onCreateAtividade={handleAddExtraAtividade}
               />
             ))}
 

@@ -16,7 +16,9 @@ export default withErrorHandling(async (req: IncomingMessage, res: ServerRespons
     const objetivoId = String(body.objetivoId ?? '');
     const name = String(body.name ?? '');
     const weekStart = typeof body.weekStart === 'string' ? body.weekStart : null;
-    const created = await createExtraAtividade(user, objetivoId, name, weekStart);
+    const plannedStart = typeof body.plannedStart === 'string' ? body.plannedStart : null;
+    const plannedEnd = typeof body.plannedEnd === 'string' ? body.plannedEnd : null;
+    const created = await createExtraAtividade(user, objetivoId, name, weekStart, plannedStart, plannedEnd);
     sendJson(res, 201, { atividade: created });
     return;
   }

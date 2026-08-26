@@ -613,6 +613,93 @@ auditoria que o próprio usuário não possa editar.
     Semana": nenhuma causa overflow de página (nem vertical nem
     horizontal), o corpo rola internamente com o cabeçalho parado no
     lugar, e a página em si não rola por causa do componente.
+- **Redesign visual do Roadmap Timeline a partir de um mockup de referência**
+  (paleta, cabeçalho em 3 camadas, indicadores, painel de detalhes com
+  abas) — mantendo tudo que já existia (zoom Dia/Semana/Mês/Trimestre,
+  Atividades da Semana, filtros, colapso por objetivo), por decisão
+  explícita do usuário diante do trade-off entre seguir o mockup à risca
+  (grade fixa por mês, sem essas funcionalidades) ou só restilizar em cima
+  do que já estava construído:
+  - **Paleta exata do mockup**: `OBJETIVO_COLOR.diagnostico.bar` ajustado de
+    `#16a34a` para `#15803d` (as outras 3 cores já batiam). Cabeçalho ganha
+    os tons de navy do mockup (`#1E2A47`/`#2A3A5C`/`#3B4C78` para o mês
+    atual em destaque), sem reaproveitar o resto da paleta cinza/slate que
+    o app usa em outros lugares — deliberadamente um esquema próprio da
+    Timeline, como no mockup.
+  - **Cabeçalho em 3 camadas** (`RoadmapTimeline.tsx`): duas novas linhas —
+    "Objetivos" (faixa colorida por objetivo) e "Período" (rótulo da
+    entrega + intervalo por extenso, via `formatObjetivoPeriodLabel` já
+    existente) — acima da régua de tempo já existente, calculadas com
+    `periodColumnRange` (o mesmo helper já usado para posicionar barras),
+    então funcionam em QUALQUER zoom, não só no "Mês" do mockup. Os
+    segmentos de cada linha são calculados uma vez (`objetivoBandSegments`,
+    com um `cursor` evitando sobreposição entre objetivos consecutivos) e
+    reaproveitados pelas duas linhas.
+  - **Badge "Hoje"**: pill vermelho sobre a linha tracejada, com
+    `position: sticky` para acompanhar o scroll vertical do corpo (o
+    cabeçalho, desde a correção de layout anterior, não faz mais parte da
+    área que rola verticalmente).
+  - **Cartões de indicadores** (`TimelineStatCards.tsx`): anel de progresso
+    (SVG) + cartões de Concluídas/Em andamento/Atrasadas/Não
+    iniciadas/Total, calculados sobre o mesmo universo de atividades já
+    elegíveis para aparecer no grid (`eligibleRows`) — não um novo filtro.
+  - **Painel de detalhes lateral** (`ActivityDetailPanel.tsx`, substitui
+    `AtividadeDetailModal.tsx`, removido): sticky ao lado do grid em telas
+    xl+, slide-over com fundo escurecido abaixo disso — mesma mecânica do
+    mockup. 3 abas: **Detalhes** (Status editável, Responsável — reaproveita
+    `raciAccountableName`, já rotulado "Responsável" no app —, Descrição —
+    reaproveita o campo `note` já existente, só relabelado aqui —,
+    Progresso somente leitura); **Subtarefas**, ver abaixo; **Histórico**,
+    que reaproveita de verdade o `AuditHistoryModal`/`audit_log` já
+    existentes (exportados `FIELD_LABEL`/`CHANGE_TYPE_LABEL`/`formatValue`/
+    `formatDateTime` de lá para não duplicar) — não é uma lista fictícia
+    como no mockup. Prazo e Objetivo continuam só leitura aqui (dizem
+    respeito ao fluxo de replanejamento com motivo obrigatório, Bloco 1.2)
+    — "Editar no Editor" leva até lá.
+  - **Campos novos no modelo de dados** (migration `005_atividade_subtasks.sql`,
+    aditiva): `subtasks` (checklist — nome + % por item) e `colorOverride`
+    (cor de override da barra). Por decisão explícita do usuário, os campos
+    foram adicionados de verdade (não só a UI preparada) — `subtasks` tem
+    edição completa (adicionar/renomear/remover/arrastar o range de %) na
+    aba Subtarefas, e quando a atividade tem 1+ subtarefas, o progresso
+    exibido na barra e no painel passa a ser a MÉDIA real das subtarefas
+    em vez do proxy de tempo decorrido (`computeBarFillPercent`, que já
+    existia) — sem subtarefas, nada muda no comportamento anterior.
+    `colorOverride` ficou só no modelo/tipo (sem UI para defini-lo ainda) —
+    nenhuma atividade tinha um caso de uso real para "barra que cruza
+    objetivos" nos dados de teste, então não inventei uma interface para
+    isso sem um caso real para validar contra.
+  - **Sem inventar dado**: "Responsável" reaproveita `raciAccountableName`
+    (já existia, já rotulado assim no app) em vez de criar um campo
+    redundante; "Descrição" reaproveita `note` pelo mesmo motivo. O
+    "Status" ofertado no seletor são só os 3 valores reais do modelo
+    (Planejada/Em andamento/Concluída) — "Atrasado" continua sendo um
+    estado DERIVADO (não fica ofertado como opção "salvável", já que não é
+    um valor que a atividade realmente guarda).
+  - **"+ Nova Atividade"**: reaproveita o mesmo fluxo de criação de extra já
+    usado no Editor (`createExtraAtividadeApi`/`createExtraAtividade`),
+    estendido com `plannedStart`/`plannedEnd` opcionais (antes, uma extra
+    sempre nascia sem prazo) — criada already posicionada no Timeline.
+  - **Legenda combinada**: uma única faixa com os pontos de Objetivo +
+    ícones/cores de Status da Timeline, no rodapé do card, substituindo os
+    dois blocos que ficavam divididos nos filtros.
+  - **Correção de overflow mobile** descoberta durante o teste em ~390px:
+    o container do toolbar tinha `shrink-0` (não encolhe) E `flex-wrap`
+    (deveria quebrar linha) ao mesmo tempo — como só um dos dois pode
+    "vencer", `shrink-0` sempre ganhava e o grupo de botões nunca quebrava
+    linha de verdade, vazando a largura da página. Removido `shrink-0`
+    dali. Um segundo problema (o card de indicadores, ao quebrar em 3
+    linhas num celular, espremia a área do grid a quase zero de altura,
+    fazendo a legenda visualmente sobrepor as barras e bloquear cliques)
+    foi corrigido dando um `min-h` mínimo + `overflow-hidden` de segurança
+    para essa área, e deixando os cartões de indicador rolarem na
+    horizontal como uma faixa compacta abaixo de `sm`, em vez de quebrar
+    em várias linhas altas.
+  - Testado via Playwright em 1920×1080, 1366×768 e ~390px: sem overflow de
+    página em nenhuma resolução; criar atividade nova, editar
+    status/responsável/descrição, adicionar e salvar subtarefa (com o %
+    persistindo e o progresso da barra atualizando de verdade), e ver o
+    registro real no Histórico — tudo de ponta a ponta contra o banco.
 **Ainda não feito** (próximos passos de UX, menor prioridade): revisão
 formal de contraste de cor (WCAG) e responsividade em telas mobile/tablet,
 e uma estrutura de roles mais extensível (hoje um enum fixo `admin`/`viewer`,

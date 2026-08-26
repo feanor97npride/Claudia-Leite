@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Atividade, Objetivo, ObjetivoId, Project, TimelineVisualStatus } from '../../types';
+import type { Atividade, AtividadePatch, Objetivo, ObjetivoId, Project, TimelineVisualStatus } from '../../types';
 import { OBJETIVO_COLOR, STATUS_META, TIMELINE_STATUS_META } from '../../types';
 import {
   atividadesForObjetivo,
@@ -16,9 +16,17 @@ import {
   periodColumnRange,
   todayPeriodPosition,
 } from '../../lib/timelinePeriods';
-import { todayISO } from '../../utils/date';
-import AtividadeDetailModal from './AtividadeDetailModal';
+import { formatObjetivoPeriodLabel, formatShortDate, todayISO } from '../../utils/date';
+import ActivityDetailPanel from './ActivityDetailPanel';
+import NewActivityModal from './NewActivityModal';
 import HoverPreviewCard from './HoverPreviewCard';
+import TimelineStatCards from './TimelineStatCards';
+
+/** Header ruler navy tones (mockup's palette) — kept local to the Timeline
+ *  since nothing else in the app uses this dark navbar-style scheme. */
+const HEADER_NAVY = '#1E2A47';
+const HEADER_MONTH_BG = '#2A3A5C';
+const HEADER_MONTH_TODAY_BG = '#3B4C78';
 
 /** One report's free-narrative Project plus the ISO Monday of the report it
  *  came from — every report contributes its own items, not just the most
@@ -46,6 +54,13 @@ interface Props {
   currentWeekStart: string;
   readOnly: boolean;
   onEditAtividade: (objetivoId: ObjetivoId, atividadeId: string) => void;
+  /** Saves a partial edit made from the detail panel (status, responsável,
+   *  descrição, subtarefas) — prazo/objetivo stay governed elsewhere (see
+   *  onEditAtividade), so this panel never sends those fields. */
+  onUpdateAtividade: (id: string, patch: AtividadePatch) => Promise<void>;
+  /** "+ Nova Atividade" (mockup navbar) — reuses the same create-extra flow
+   *  already used by the Editor, just with the planned dates set up front. */
+  onCreateAtividade: (objetivoId: ObjetivoId, name: string, plannedStart: string, plannedEnd: string) => Promise<Atividade>;
 }
 
 /** Not a real ObjetivoId — a manual color token for the synthetic
@@ -73,6 +88,8 @@ export default function RoadmapTimeline({
   currentWeekStart,
   readOnly,
   onEditAtividade,
+  onUpdateAtividade,
+  onCreateAtividade,
 }: Props) {
   const containerRef = useRef<HTMLElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -89,6 +106,7 @@ export default function RoadmapTimeline({
   const [categoriaFilter, setCategoriaFilter] = useState<Set<ObjetivoId>>(new Set());
   const [statusFilter, setStatusFilter] = useState<Set<TimelineVisualStatus>>(new Set());
   const [responsavelFilter, setResponsavelFilter] = useState<Set<string>>(new Set());
+  const [showNewActivity, setShowNewActivity] = useState(false);
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -287,6 +305,30 @@ export default function RoadmapTimeline({
 
   if (objetivos.length === 0) return null;
 
+  // Objetivos/Período ruler bands (mockup items 2-3): each objetivo's own
+  // period mapped onto the currently displayed columns, chronologically —
+  // `cursor` tracks how many columns are already consumed so consecutive
+  // bands (and any gap between them) never overlap. Both the "Objetivos"
+  // and "Período" rows below are built from this SAME segment list, just
+  // styled differently.
+  type BandSegment = { kind: 'gap'; span: number } | { kind: 'objetivo'; objetivo: Objetivo; span: number };
+  const objetivoBandSegments: BandSegment[] = [];
+  {
+    let cursor = 0;
+    const sorted = [...objetivos].sort((a, b) => a.periodStart.localeCompare(b.periodStart));
+    for (const o of sorted) {
+      const range = periodColumnRange(o.periodStart, o.periodEnd, periods);
+      if (!range) continue;
+      if (range.startIdx > cursor) objetivoBandSegments.push({ kind: 'gap', span: range.startIdx - cursor });
+      objetivoBandSegments.push({ kind: 'objetivo', objetivo: o, span: range.span });
+      cursor = range.startIdx + range.span;
+    }
+    if (cursor < periods.length) objetivoBandSegments.push({ kind: 'gap', span: periods.length - cursor });
+  }
+  // Corner "Atividade" cell spans every header row: Objetivos + Período +
+  // Meses, plus the extra month-group row that only exists at 'day' zoom.
+  const headerRowCount = 3 + (monthGroups.length > 0 ? 1 : 0);
+
   // Every atividade eligible to appear in the Gantt at all (has planned
   // start/end, visible this week) — independent of the filter chips below.
   // Used both to derive filter options (categoria/responsável) and to tell
@@ -297,6 +339,10 @@ export default function RoadmapTimeline({
       .filter((a): a is Atividade & { plannedStart: string; plannedEnd: string } => !!a.plannedStart && !!a.plannedEnd)
       .map((atividade) => ({ atividade, objetivo })),
   );
+  // Indicator cards above the grid (mockup item 4) — scoped to the same
+  // "eligible" universe as the grid itself, independent of which filter
+  // chips are currently active.
+  const eligibleStatuses = eligibleRows.map(({ atividade }) => timelineVisualStatus(atividade, today));
 
   const responsavelOptions = Array.from(
     new Set(
@@ -371,13 +417,26 @@ export default function RoadmapTimeline({
       ref={containerRef}
       className={
         isFullscreen
-          ? 'bg-white p-6 h-full overflow-hidden flex flex-col'
-          : 'rounded-xl border border-slate-200 bg-white p-4 flex flex-col max-h-[75vh]'
+          ? 'bg-white p-6 h-full overflow-hidden flex flex-col xl:flex-row gap-4'
+          : 'rounded-xl border border-slate-200 bg-white p-4 flex flex-col xl:flex-row gap-4 max-h-[75vh]'
       }
     >
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col">
       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap shrink-0">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Roadmap — Visão Timeline</h2>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => setShowNewActivity(true)}
+              className="inline-flex items-center gap-1 text-[11px] font-medium border border-slate-300 bg-white rounded-lg px-2.5 py-1.5 hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              + Nova Atividade
+            </button>
+          )}
+          <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-red-500 text-white rounded-lg px-2.5 py-1.5">
+            Hoje: {formatShortDate(today)}
+          </span>
           <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5" role="group" aria-label="Zoom temporal">
             {(Object.keys(ZOOM_LEVEL_META) as ZoomLevel[]).map((z) => (
               <button
@@ -404,13 +463,14 @@ export default function RoadmapTimeline({
           </button>
         </div>
       </div>
+      {eligibleStatuses.length > 0 && <TimelineStatCards statuses={eligibleStatuses} />}
       {eligibleRows.length === 0 && manualEligibleRows.length === 0 ? (
         <p className="text-xs text-slate-400 italic">
           Nenhuma atividade com início e fim planejados definidos ainda — defina o "Prazo" de uma
           atividade no Roadmap acima (modo de edição de um Objetivo) para ela aparecer aqui.
         </p>
       ) : (
-        <div className="flex flex-col flex-1 min-h-0">
+        <div className="flex flex-col flex-1 min-h-[220px] overflow-hidden">
           <div className="flex flex-wrap items-start gap-x-4 gap-y-2 mb-3 text-[11px] shrink-0">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-slate-400 font-medium shrink-0">Categoria:</span>
@@ -537,15 +597,50 @@ export default function RoadmapTimeline({
             style={{ gridTemplateColumns: `176px repeat(${periods.length}, minmax(${ZOOM_LEVEL_META[zoom].minColWidth}px, 1fr))` }}
           >
             <div
-              className="sticky left-0 z-20 bg-slate-900 text-white font-semibold px-2 py-1.5 rounded-tl-md shadow-[3px_0_6px_-2px_rgba(0,0,0,0.35)]"
-              style={{ gridRow: monthGroups.length > 0 ? 'span 2' : undefined }}
+              className="sticky left-0 z-20 text-white font-semibold px-2 py-1.5 rounded-tl-md shadow-[3px_0_6px_-2px_rgba(0,0,0,0.35)] flex items-center"
+              style={{ gridRow: `span ${headerRowCount}`, backgroundColor: HEADER_NAVY }}
             >
               Atividade
             </div>
+            {/* Objetivos band (mockup item 2/3): each objetivo's own color,
+               spanning the columns its period covers. */}
+            {objetivoBandSegments.map((seg, i) =>
+              seg.kind === 'gap' ? (
+                <div key={`obj-gap-${i}`} style={{ gridColumn: `span ${seg.span}`, backgroundColor: HEADER_NAVY }} />
+              ) : (
+                <div
+                  key={seg.objetivo.id}
+                  title={seg.objetivo.name}
+                  className="flex items-center justify-center text-white text-xs font-semibold py-2 px-1 truncate"
+                  style={{ gridColumn: `span ${seg.span}`, backgroundColor: OBJETIVO_COLOR[seg.objetivo.id].bar }}
+                >
+                  {seg.objetivo.name}
+                </div>
+              ),
+            )}
+            {/* Período band: entrega label + date range by extenso, same
+               segments as the Objetivos row above (see periodColumnRange). */}
+            {objetivoBandSegments.map((seg, i) =>
+              seg.kind === 'gap' ? (
+                <div key={`per-gap-${i}`} style={{ gridColumn: `span ${seg.span}`, backgroundColor: HEADER_NAVY, opacity: 0.85 }} />
+              ) : (
+                <div
+                  key={`per-${seg.objetivo.id}`}
+                  title={`${seg.objetivo.entregaLabel} — ${formatObjetivoPeriodLabel(seg.objetivo.periodStart, seg.objetivo.periodEnd)}`}
+                  className="flex flex-col items-center justify-center text-white py-1 leading-tight px-1"
+                  style={{ gridColumn: `span ${seg.span}`, backgroundColor: OBJETIVO_COLOR[seg.objetivo.id].bar, opacity: 0.85 }}
+                >
+                  <span className="text-[10px] font-semibold truncate max-w-full">{seg.objetivo.entregaLabel}</span>
+                  <span className="text-[9px] font-normal opacity-90 truncate max-w-full">
+                    {formatObjetivoPeriodLabel(seg.objetivo.periodStart, seg.objetivo.periodEnd)}
+                  </span>
+                </div>
+              ),
+            )}
             {/* Melhoria 1: month header row, 'day' zoom only — sits above
                the day-number row via CSS Grid auto-placement (the
-               "Atividade" corner above spans both rows, so this row's
-               cells naturally start at column 2). */}
+               "Atividade" corner above spans every header row, so this
+               row's cells naturally start at column 2). */}
             {monthGroups.map((g, gi) => (
               <div
                 key={g.key}
@@ -558,6 +653,9 @@ export default function RoadmapTimeline({
                 {g.label}
               </div>
             ))}
+            {/* Meses (mockup item 3): the period covering "hoje" gets a
+               lighter background, same idea as the mockup's TODAY_MONTH
+               highlight, generalized to whichever zoom level is active. */}
             {periods.map((p, i) => (
               <div
                 key={p.key}
@@ -565,9 +663,10 @@ export default function RoadmapTimeline({
                   periodColRefs.current[i] = el;
                 }}
                 title={p.start === p.end ? p.start : `${p.start} – ${p.end}`}
-                className={`bg-slate-800 text-white text-center font-mono font-medium px-1 py-1.5 ${
+                className={`text-white text-center font-mono font-medium px-1 py-1.5 ${
                   i === periods.length - 1 ? 'rounded-tr-md' : ''
                 }`}
+                style={{ backgroundColor: p.start <= today && today <= p.end ? HEADER_MONTH_TODAY_BG : HEADER_MONTH_BG }}
               >
                 {p.label}
               </div>
@@ -587,6 +686,16 @@ export default function RoadmapTimeline({
                 style={{ left: todayLeft }}
               >
                 <span className="absolute -top-0.5 -left-[3px] w-2 h-2 rounded-full bg-red-500" />
+                {/* Anchored just inside the scrollable body's own top (not
+                   above it, which the overflow-y-auto ancestor would clip)
+                   — the header itself no longer scrolls with this line
+                   (see the layout-overflow fix), so "Hoje" lives here now. */}
+                <span
+                  className="sticky top-1 block w-fit whitespace-nowrap text-[10px] font-semibold text-white bg-red-500 rounded-full px-2 py-0.5 shadow-sm"
+                  style={{ transform: 'translateX(-50%)' }}
+                >
+                  Hoje
+                </span>
               </div>
             )}
             {/* Melhoria 1: a stronger divider at each month boundary,
@@ -870,6 +979,48 @@ export default function RoadmapTimeline({
           )}
         </div>
       )}
+      {/* Legenda combinada (mockup item 6): pontos de Objetivo + status da
+         Timeline numa única faixa, em vez de blocos separados. */}
+      {hasAnyVisibleGroup && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-3 pt-3 border-t border-slate-100 text-[11px] shrink-0">
+          {objetivos.map((o) => (
+            <span key={o.id} className="inline-flex items-center gap-1.5 font-medium text-slate-600">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: OBJETIVO_COLOR[o.id].bar }} />
+              {o.name}
+            </span>
+          ))}
+          <span className="w-px h-4 bg-slate-200 hidden sm:block" />
+          {(Object.keys(TIMELINE_STATUS_META) as TimelineVisualStatus[]).map((s) => {
+            const meta = TIMELINE_STATUS_META[s];
+            return (
+              <span key={s} className="inline-flex items-center gap-1.5 font-medium" style={{ color: meta.bg }}>
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: s === 'planned' ? '#ffffff' : meta.bg, border: `1.5px solid ${meta.border ?? meta.bg}` }}
+                />
+                {meta.label}
+              </span>
+            );
+          })}
+        </div>
+      )}
+      </div>
+      {selected && (
+        <ActivityDetailPanel
+          atividade={selected.atividade}
+          objetivo={selected.objetivo}
+          readOnly={readOnly}
+          onClose={() => setSelected(null)}
+          onEditInEditor={() => {
+            onEditAtividade(selected.objetivo.id, selected.atividade.id);
+            setSelected(null);
+          }}
+          onSave={async (patch) => {
+            await onUpdateAtividade(selected.atividade.id, patch);
+            setSelected(null);
+          }}
+        />
+      )}
       {preview && !selected && (
         <HoverPreviewCard
           atividade={preview.atividade}
@@ -884,15 +1035,14 @@ export default function RoadmapTimeline({
           }}
         />
       )}
-      {selected && (
-        <AtividadeDetailModal
-          atividade={selected.atividade}
-          objetivo={selected.objetivo}
-          readOnly={readOnly}
-          onClose={() => setSelected(null)}
-          onEdit={() => {
-            onEditAtividade(selected.objetivo.id, selected.atividade.id);
-            setSelected(null);
+      {showNewActivity && (
+        <NewActivityModal
+          objetivos={objetivos}
+          defaultObjetivoId={objetivos[0].id}
+          onClose={() => setShowNewActivity(false)}
+          onCreate={async (objetivoId, name, plannedStart, plannedEnd) => {
+            await onCreateAtividade(objetivoId, name, plannedStart, plannedEnd);
+            setShowNewActivity(false);
           }}
         />
       )}

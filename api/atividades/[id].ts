@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { updateAtividade, deleteExtraAtividade } from '../../server/roadmap.js';
+import { updateAtividade, deleteExtraAtividade, type SubtaskRow } from '../../server/roadmap.js';
 import { readJsonBody, sendJson, withErrorHandling, HttpError, requireAuth } from '../../server/http.js';
 
 function idFromUrl(url: string): string {
@@ -22,6 +22,8 @@ export default withErrorHandling(async (req: IncomingMessage, res: ServerRespons
       plannedEnd: body.plannedEnd as string | null | undefined,
       raciAccountableName: body.raciAccountableName as string | null | undefined,
       raciResponsibleName: body.raciResponsibleName as string | null | undefined,
+      subtasks: body.subtasks as SubtaskRow[] | undefined,
+      colorOverride: body.colorOverride as string | null | undefined,
       objetivoId: body.objetivoId as string | undefined,
       reason: body.reason as string | undefined,
     });

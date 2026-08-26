@@ -9,14 +9,14 @@ interface Props {
   onClose: () => void;
 }
 
-const CHANGE_TYPE_LABEL: Record<ChangeType, string> = {
+export const CHANGE_TYPE_LABEL: Record<ChangeType, string> = {
   escopo: 'Escopo',
   prazo: 'Prazo',
   status: 'Status',
   outro: 'Outro',
 };
 
-const FIELD_LABEL: Record<string, string> = {
+export const FIELD_LABEL: Record<string, string> = {
   name: 'Nome',
   entregaLabel: 'Rótulo da entrega',
   note: 'Anotação',
@@ -28,13 +28,15 @@ const FIELD_LABEL: Record<string, string> = {
   plannedEnd: 'Fim planejado',
   completedAt: 'Data de conclusão',
   status: 'Status',
+  subtasks: 'Subtarefas',
+  colorOverride: 'Cor de override',
 };
 
-function formatValue(v: string | null): string {
+export function formatValue(v: string | null): string {
   return v === null || v === '' ? '—' : v;
 }
 
-function formatDateTime(iso: string): string {
+export function formatDateTime(iso: string): string {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso));
 }
 

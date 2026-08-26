@@ -102,7 +102,7 @@ export type ObjetivoId = 'diagnostico' | 'governanca' | 'operacao' | 'estrategia
  *  identity (e.g. the timeline Gantt) — a single named source instead of
  *  each component picking its own shade. */
 export const OBJETIVO_COLOR: Record<ObjetivoId, { bar: string; tint: string; text: string }> = {
-  diagnostico: { bar: '#16a34a', tint: '#e9f7ee', text: '#15803d' },
+  diagnostico: { bar: '#15803d', tint: '#e9f7ee', text: '#15803d' },
   governanca: { bar: '#1d4ed8', tint: '#eaefff', text: '#1e40af' },
   operacao: { bar: '#0d9488', tint: '#e6f6f4', text: '#0f766e' },
   estrategia_futura: { bar: '#f59e0b', tint: '#fef3e0', text: '#b45309' },
@@ -122,6 +122,17 @@ export interface Objetivo {
 export type ActivityStatus = 'planned' | 'in_progress' | 'done';
 export type ActivityKind = 'planned' | 'extra';
 
+/** One checklist item inside an atividade's "Subtarefas" tab (Roadmap
+ *  Timeline detail panel). `percent` is set by hand (0-100, not derived);
+ *  when an atividade has 1+ subtasks, its own progress is the average of
+ *  these instead of the elapsed-time proxy (see lib/roadmap.ts
+ *  computeBarFillPercent). */
+export interface Subtask {
+  id: string;
+  name: string;
+  percent: number;
+}
+
 export interface Atividade {
   id: string;
   name: string;
@@ -129,7 +140,7 @@ export interface Atividade {
   status: ActivityStatus;
   kind: ActivityKind;
   completedAt?: string; // ISO date — real completion date; auto-set when status -> 'done', manually editable
-  note?: string; // free-text annotation, informational only — never affects progress %
+  note?: string; // free-text annotation, informational only — never affects progress % (shown as "Descrição" in the Timeline detail panel)
   plannedStart?: string; // ISO date — planned start, used only for the ahead/behind % calculation
   plannedEnd?: string; // ISO date — planned end, used only for the ahead/behind % calculation
   // RACI (descriptive only — unrelated to the system access role below)
@@ -140,6 +151,14 @@ export interface Atividade {
    *  existed. Used only to hide extras from the live Roadmap editor once
    *  their week passes (see lib/roadmap.ts isVisibleThisWeek). */
   weekStart?: string;
+  /** Checklist contributing to a computed progress % — see Subtask above.
+   *  [] (the default) means "no subtasks", falling back to the existing
+   *  elapsed-time-based fill. */
+  subtasks: Subtask[];
+  /** Hex color overriding the Objetivo's own color on the Timeline bar —
+   *  for an atividade that visually bridges two Objetivos. undefined =
+   *  use the Objetivo's color, the default for every atividade. */
+  colorOverride?: string;
 }
 
 /** Partial update sent to PATCH /api/atividades/:id — nullable fields clear
@@ -154,6 +173,8 @@ export interface AtividadePatch {
   plannedEnd?: string | null;
   raciAccountableName?: string | null;
   raciResponsibleName?: string | null;
+  subtasks?: Subtask[];
+  colorOverride?: string | null;
   /** Reassigns the atividade to a different Objetivo — audited like any
    *  other field (Bloco 1.1); the app's progress/timeline calcs need no
    *  special-casing since they simply filter atividades by objetivoId. */
