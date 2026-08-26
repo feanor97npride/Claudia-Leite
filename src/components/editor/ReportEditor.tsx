@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Atividade, AtividadePatch, Objetivo, ObjetivoId, Report } from '../../types';
 import { blankProject } from '../../lib/factory';
 import { formatPeriodLabel } from '../../utils/date';
@@ -33,6 +34,9 @@ export default function ReportEditor({
   focusAtividade,
   onFocusHandled,
 }: Props) {
+  const [projectsSectionOpen, setProjectsSectionOpen] = useState(true);
+  const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
+
   function set<K extends keyof Report>(key: K, value: Report[K]) {
     onChange({ ...report, [key]: value });
   }
@@ -127,35 +131,73 @@ export default function ReportEditor({
         />
       </section>
 
-      <section>
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Projetos / Iniciativas da semana{' '}
-            <span className="normal-case text-slate-400">(narrativa livre — não faz parte do roadmap governado)</span>
-          </h2>
-          <button
-            type="button"
-            onClick={addProject}
-            className="text-xs font-medium bg-slate-900 text-white rounded-lg px-3 py-1.5 hover:bg-slate-800 transition-colors"
+      <section className="rounded-xl border border-slate-200 bg-white">
+        <button
+          type="button"
+          onClick={() => setProjectsSectionOpen((v) => !v)}
+          aria-expanded={projectsSectionOpen}
+          className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left cursor-pointer"
+        >
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span
+              aria-hidden="true"
+              className={`text-slate-400 text-[10px] shrink-0 transition-transform duration-200 ${projectsSectionOpen ? 'rotate-90' : ''}`}
+            >
+              ▸
+            </span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Projetos / Iniciativas da semana
+            </span>
+            <span className="text-xs text-slate-400 hidden sm:inline">
+              (narrativa livre — não faz parte do roadmap governado)
+            </span>
+            <span className="text-xs font-medium bg-slate-100 text-slate-500 rounded-full px-2 py-0.5">
+              {report.projects.length}
+            </span>
+          </div>
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation();
+              addProject();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                addProject();
+              }
+            }}
+            className="text-xs font-medium bg-slate-900 text-white rounded-lg px-3 py-1.5 hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
           >
             + Adicionar projeto
-          </button>
-        </div>
-        <div className="space-y-3">
-          {report.projects.map((project, i) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              index={i}
-              onChange={(p) => updateProject(i, p)}
-              onRemove={() => removeProject(i)}
-              canRemove={report.projects.length > 1}
-              onMoveUp={() => moveProject(i, -1)}
-              onMoveDown={() => moveProject(i, 1)}
-              canMoveUp={i > 0}
-              canMoveDown={i < report.projects.length - 1}
-            />
-          ))}
+          </span>
+        </button>
+
+        <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${projectsSectionOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+          <div className="overflow-hidden">
+            <div className="px-4 pb-4 space-y-2">
+              {report.projects.map((project, i) => (
+                <ProjectCard
+                  key={project.id}
+                  project={project}
+                  index={i}
+                  expanded={project.id === expandedProjectId}
+                  onToggleExpand={() =>
+                    setExpandedProjectId((cur) => (cur === project.id ? null : project.id))
+                  }
+                  onChange={(p) => updateProject(i, p)}
+                  onRemove={() => removeProject(i)}
+                  canRemove={report.projects.length > 1}
+                  onMoveUp={() => moveProject(i, -1)}
+                  onMoveDown={() => moveProject(i, 1)}
+                  canMoveUp={i > 0}
+                  canMoveDown={i < report.projects.length - 1}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 

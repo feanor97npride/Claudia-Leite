@@ -191,7 +191,14 @@ function AtividadeRow({
       }`}
       data-testid={`atividade-row-${a.id}`}
     >
-      <div className="flex items-center gap-1">
+      {/* Every fixed-width piece (badges, prazo, responsável) gets
+         shrink-0 and the row wraps (flex-wrap) instead of clipping or
+         stacking elements on top of each other on narrow screens — the
+         name is the only piece allowed to shrink/truncate (flex-1
+         min-w-0). Previously some of this info was hidden below sm/md
+         breakpoints instead of wrapping; now everything stays visible,
+         just flows onto a second line when the row doesn't fit. */}
+      <div className="flex flex-wrap items-center gap-1">
         <div
           role="button"
           tabIndex={0}
@@ -203,7 +210,7 @@ function AtividadeRow({
             }
           }}
           aria-expanded={expanded}
-          className={`flex-1 min-w-0 flex items-center gap-1.5 text-left rounded-lg px-1.5 py-2 cursor-pointer transition-colors duration-150 ${
+          className={`flex-1 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-left rounded-lg px-1.5 py-2 cursor-pointer transition-colors duration-150 ${
             expanded ? 'bg-slate-50' : 'hover:bg-slate-50'
           }`}
         >
@@ -221,7 +228,7 @@ function AtividadeRow({
             />
           )}
           <span
-            className={`flex-1 min-w-0 truncate text-xs ${isDone ? 'text-slate-900 font-semibold' : 'text-slate-700'}`}
+            className={`min-w-[80px] flex-1 truncate text-xs ${isDone ? 'text-slate-900 font-semibold' : 'text-slate-700'}`}
           >
             {a.name || (a.kind === 'extra' ? 'Atividade extra sem nome' : 'Atividade sem nome')}
           </span>
@@ -230,13 +237,13 @@ function AtividadeRow({
               Extra
             </span>
           )}
-          <span className="text-[10px] text-slate-400 shrink-0 hidden sm:inline">
+          <span className="text-[10px] text-slate-400 shrink-0">
             {a.plannedStart && a.plannedEnd
               ? `${shortDayMonth(a.plannedStart)} até ${shortDayMonth(a.plannedEnd)}`
               : 'Prazo não definido'}
           </span>
           {a.raciAccountableName?.trim() && (
-            <span className="text-[10px] text-slate-400 shrink-0 hidden md:inline truncate max-w-[100px]">
+            <span className="text-[10px] text-slate-400 shrink-0 truncate max-w-[100px]">
               {a.raciAccountableName}
             </span>
           )}
@@ -244,7 +251,7 @@ function AtividadeRow({
           <StatusBadge atividade={a} />
         </div>
         {isDone && projects.length > 0 && (
-          <>
+          <div className="flex items-center gap-1 shrink-0 flex-wrap">
             {projects.length > 1 && (
               <select
                 value={selectedProjectId}
@@ -268,7 +275,7 @@ function AtividadeRow({
             >
               + Entrega
             </button>
-          </>
+          </div>
         )}
         <button
           type="button"
@@ -545,6 +552,11 @@ function ObjetivoCard({
   // as text or as inputs is this separate `itemsEditMode` toggle.
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [itemsEditMode, setItemsEditMode] = useState(false);
+  // A 2nd, coarser collapse layer above the accordion: the full activity
+  // list (with its own per-item accordion) is hidden behind "Ver
+  // atividades" by default — only a 2-name preview shows — to keep a
+  // roadmap with many objetivos from turning into one long page of lists.
+  const [showActivities, setShowActivities] = useState(false);
   const [savingItems, setSavingItems] = useState(false);
   const [draftActivities, setDraftActivities] = useState<Record<string, ActivityDraft>>({});
   const [itemsError, setItemsError] = useState('');
@@ -563,6 +575,7 @@ function ObjetivoCard({
 
   useEffect(() => {
     if (!focusAtividadeId) return;
+    setShowActivities(true);
     setExpandedId(focusAtividadeId);
     setItemsEditMode(true);
     setHighlightedId(focusAtividadeId);
@@ -851,53 +864,99 @@ function ObjetivoCard({
         </p>
       ) : (
         <>
-          <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() =>
+              setShowActivities((v) => {
+                // Collapsing: also close whatever item accordion was open.
+                // With it closed, no AtividadeRow can have edit-mode inputs
+                // mounted (that's gated on `editMode && expanded`), so this
+                // whole block can safely animate shut without leaving
+                // hidden-but-focusable inputs behind — the same class of
+                // bug fixed earlier at the single-item level.
+                if (v) setExpandedId(null);
+                return !v;
+              })
+            }
+            aria-expanded={showActivities}
+            className="w-full flex items-center justify-between gap-2 text-left cursor-pointer"
+          >
             <p className="text-[11px] font-medium text-slate-400">
               {items.length} {items.length === 1 ? 'atividade' : 'atividades'}
             </p>
-            {!readOnly && (
-              <div className="flex items-center gap-2">
-                {itemsEditMode && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-slate-900 transition-colors">
+              {showActivities ? 'Recolher' : 'Ver atividades'}
+              <span
+                aria-hidden="true"
+                className={`text-[10px] transition-transform duration-200 ${showActivities ? 'rotate-180' : ''}`}
+              >
+                ▾
+              </span>
+            </span>
+          </button>
+
+          {!showActivities && (
+            <div className="flex flex-col gap-1">
+              {items.slice(0, 2).map((a) => (
+                <p key={a.id} className="flex items-center gap-1.5 text-xs text-slate-400">
+                  <span className="w-1 h-1 rounded-full bg-slate-300 shrink-0" />
+                  <span className="truncate">{a.name || 'Atividade sem nome'}</span>
+                </p>
+              ))}
+            </div>
+          )}
+
+          {/* Conditionally MOUNTED (not just CSS-collapsed): with up to 9+
+             accordion rows underneath, each capable of mounting its own
+             edit-mode inputs, keeping this whole subtree in the DOM while
+             hidden would risk the same duplicate-hidden-input problem —
+             simpler to not render it at all until "Ver atividades" is on. */}
+          {showActivities && (
+            <div className="flex flex-col gap-2 pt-1">
+              {!readOnly && (
+                <div className="flex items-center justify-end gap-2">
+                  {itemsEditMode && (
+                    <button
+                      type="button"
+                      onClick={cancelItemEdits}
+                      disabled={savingItems}
+                      className="text-[11px] font-medium text-slate-400 hover:text-slate-900 transition-colors disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={cancelItemEdits}
+                    onClick={() => (itemsEditMode ? void saveItemEdits() : setItemsEditMode(true))}
                     disabled={savingItems}
-                    className="text-[11px] font-medium text-slate-400 hover:text-slate-900 transition-colors disabled:opacity-50"
+                    className="text-[11px] font-medium text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded px-2 py-1 transition-colors disabled:opacity-50"
                   >
-                    Cancelar
+                    {itemsEditMode ? (savingItems ? 'Salvando…' : 'Concluir edição') : 'Editar'}
                   </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => (itemsEditMode ? void saveItemEdits() : setItemsEditMode(true))}
-                  disabled={savingItems}
-                  className="text-[11px] font-medium text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded px-2 py-1 transition-colors disabled:opacity-50"
-                >
-                  {itemsEditMode ? (savingItems ? 'Salvando…' : 'Concluir edição') : 'Editar'}
-                </button>
+                </div>
+              )}
+              <div className="space-y-1">
+                {items.map((a) => (
+                  <AtividadeRow
+                    key={a.id}
+                    atividade={a}
+                    objetivos={objetivos}
+                    projects={projects}
+                    readOnly={readOnly}
+                    expanded={a.id === expandedId}
+                    editMode={itemsEditMode}
+                    highlighted={a.id === highlightedId}
+                    draft={draftActivities[a.id]}
+                    onToggleExpand={() => toggleExpand(a.id)}
+                    onDraftChange={updateDraftActivity}
+                    onRemove={onRemoveExtra}
+                    onInsertDelivery={onInsertDelivery}
+                  />
+                ))}
               </div>
-            )}
-          </div>
-          <div className="space-y-1">
-            {items.map((a) => (
-              <AtividadeRow
-                key={a.id}
-                atividade={a}
-                objetivos={objetivos}
-                projects={projects}
-                readOnly={readOnly}
-                expanded={a.id === expandedId}
-                editMode={itemsEditMode}
-                highlighted={a.id === highlightedId}
-                draft={draftActivities[a.id]}
-                onToggleExpand={() => toggleExpand(a.id)}
-                onDraftChange={updateDraftActivity}
-                onRemove={onRemoveExtra}
-                onInsertDelivery={onInsertDelivery}
-              />
-            ))}
-          </div>
-          {itemsError && <p className="text-[11px] font-medium text-red-600">{itemsError}</p>}
+              {itemsError && <p className="text-[11px] font-medium text-red-600">{itemsError}</p>}
+            </div>
+          )}
         </>
       )}
 
@@ -1010,7 +1069,7 @@ export default function RoadmapEditor({
   const visibleAtividades = atividades.filter((a) => isVisibleThisWeek(a, currentWeekStart));
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-4">
       {objetivos.map((objetivo) => (
         <ObjetivoCard
           key={objetivo.id}

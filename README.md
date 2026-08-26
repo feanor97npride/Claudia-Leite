@@ -416,6 +416,55 @@ auditoria que o próprio usuário não possa editar.
     `STATUS_META.on_track`), em vez de `slate-900` — testada uma variação
     por faixa de avanço (vermelho/âmbar/verde conforme o %), mas descartada
     a pedido do usuário em favor de uma cor fixa.
+- **Reorganização de UI/UX da tela do Editor** (layout, sidebar, e mais um
+  nível de colapso), a partir de um mockup de referência fornecido pelo
+  usuário:
+  - **Bug de sobreposição corrigido** (`RoadmapEditor.tsx`,
+    `AtividadeRow`): a linha resumida de uma atividade (chevron, ponto de
+    pendência, nome, tag Extra, prazo, responsável, badge de
+    adiantamento, badge de status) agora usa `flex flex-wrap` com `gap`
+    em vez de um `flex` sem quebra — em telas estreitas os itens
+    quebram para uma segunda linha em vez de se sobrepor. Removidas as
+    classes `hidden sm:inline`/`hidden md:inline` que antes escondiam
+    prazo/responsável no lugar de deixar quebrar — agora tudo continua
+    visível, só reflui.
+  - **Layout mais largo**: `max-w-[1800px]` (era 1400px) e o grid
+    principal do `App.tsx` ganhou `items-start` — necessário para a
+    sidebar não esticar até a altura da coluna principal (grid
+    `align-items` por padrão é `stretch`), condição para o
+    `xl:sticky xl:top-6` no `<aside>` realmente "grudar" em vez de já
+    nascer esticado do tamanho da página inteira.
+  - **Roadmap em grade responsiva**: `grid-cols-1 md:grid-cols-2
+    2xl:grid-cols-4` nos cards de Entrega (RoadmapEditor), em vez de
+    1-2 colunas fixas.
+  - **Histórico**: relatório mais recente ganha um badge verde "ATUAL"
+    (distinto de "ativo no momento" — o que está aberto no Editor/
+    Snapshot agora, que pode ser outro); "Excluir" saiu do card e virou
+    um menu de contexto (⋮), fechado ao clicar fora (mesmo padrão de
+    outside-click já usado no preview de hover da Timeline) — evita
+    exclusão por clique acidental.
+  - **Projetos / Iniciativas — colapso em dois níveis**: a seção
+    inteira vira um accordion (clique no cabeçalho recolhe a lista
+    toda, com contador de itens); dentro dela, cada `ProjectCard`
+    também é um item de accordion (nome + % + badge de status quando
+    colapsado; formulário completo com destaques verde/azul e alerta
+    âmbar em Riscos quando preenchido, ao expandir) — um projeto aberto
+    por vez, mesmo padrão já usado no Roadmap.
+  - **Cards de Entrega — preview + "Ver atividades"**: por padrão, cada
+    card mostra só o contador de atividades e até 2 nomes (sem
+    accordion, sem badges); "Ver atividades" revela a lista completa
+    (com o accordion por item da Fase anterior). Ao contrário do toggle
+    "Editar"/"Concluir edição" (que fica montado e só CSS-esconde),
+    este nível usa renderização condicional de verdade
+    (`{showActivities && (...)}`) em vez do truque `grid-rows 0fr/1fr`:
+    como o conteúdo por baixo pode ter uma linha em modo de edição
+    montada, deixá-lo no DOM só escondido reproduziria o mesmo bug de
+    inputs ocultos-mas-focáveis já corrigido no nível anterior — mais
+    simples não montar. Ao recolher, o item de accordion aberto também
+    é fechado (evita depender de `itemsEditMode` para essa garantia).
+  - Reduz bastante a extensão de rolagem da tela por padrão (efeito
+    colateral direto dos dois pontos acima), sem remover nenhum campo
+    ou funcionalidade — só reorganiza o que fica visível de cara.
 
 **Ainda não feito** (próximos passos de UX, menor prioridade): revisão
 formal de contraste de cor (WCAG) e responsividade em telas mobile/tablet,

@@ -251,7 +251,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-100">
       <header className="bg-white border-b border-slate-200 no-print">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+        <div className="max-w-[1800px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs">
               SR
@@ -286,7 +286,7 @@ export default function App() {
 
       {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
 
-      <main className="max-w-[1400px] mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+      <main className="max-w-[1800px] mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-6 items-start">
         <div>
           <div className="flex items-center justify-between mb-4 no-print flex-wrap gap-2">
             <div className="flex rounded-lg border border-slate-300 overflow-hidden bg-white">
@@ -411,7 +411,7 @@ export default function App() {
           )}
         </div>
 
-        <aside className="no-print">
+        <aside className="no-print xl:sticky xl:top-6">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
             Histórico de relatórios
           </h2>
@@ -432,7 +432,7 @@ export default function App() {
       </main>
 
       <footer className="no-print border-t border-slate-200">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-3 text-center text-[11px] text-slate-400">
+        <div className="max-w-[1800px] mx-auto px-4 sm:px-6 py-3 text-center text-[11px] text-slate-400">
           Status Report Semanal · v{__APP_VERSION__}
         </div>
       </footer>
