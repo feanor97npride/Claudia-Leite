@@ -95,13 +95,22 @@ export default function App() {
     void loadReports(user, cancelledRef);
 
     setRoadmapLoading(true);
-    Promise.all([fetchObjetivos(), fetchAtividades(), fetchBacklogItems()])
+    // Each fetch settles independently — a failure loading Backlog (e.g. its
+    // migration not applied yet on some environment) must not also blank
+    // out Objetivos/Atividades and break the Roadmap Timeline, which is
+    // what a single Promise.all would do (one rejection fails the whole
+    // batch, leaving every piece of state at its empty initial value).
+    Promise.allSettled([fetchObjetivos(), fetchAtividades(), fetchBacklogItems()])
       .then(([objs, atvs, backlog]) => {
-        setObjetivos(objs);
-        setAtividades(atvs);
-        setBacklogItems(backlog);
+        if (objs.status === 'fulfilled') setObjetivos(objs.value);
+        if (atvs.status === 'fulfilled') setAtividades(atvs.value);
+        if (backlog.status === 'fulfilled') setBacklogItems(backlog.value);
+        const failure = [objs, atvs, backlog].find((r): r is PromiseRejectedResult => r.status === 'rejected');
+        if (failure) {
+          const message = failure.reason instanceof Error ? failure.reason.message : 'Não foi possível carregar o roadmap.';
+          showToast(message, 'error');
+        }
       })
-      .catch((err) => showToast(err instanceof Error ? err.message : 'Não foi possível carregar o roadmap.', 'error'))
       .finally(() => setRoadmapLoading(false));
 
     return () => {
