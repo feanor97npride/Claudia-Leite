@@ -27,6 +27,20 @@ export const ZOOM_LEVEL_META: Record<ZoomLevel, { label: string; minColWidth: nu
 };
 
 const MONTH_ABBR = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const MONTH_FULL = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+];
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function addDays(iso: string, days: number): string {
@@ -146,6 +160,36 @@ export function periodColumnRange(
   const startIdx = startFound === -1 ? 0 : startFound;
   const endIdx = endFound === -1 ? periods.length - 1 : endFound;
   return { startIdx, span: Math.max(1, endIdx - startIdx + 1) };
+}
+
+export interface MonthGroup {
+  key: string; // "YYYY-MM"
+  label: string; // "Agosto 2026"
+  startIdx: number;
+  span: number;
+}
+
+/**
+ * Groups consecutive periods that fall in the same calendar month — used
+ * only at 'day' zoom (Melhoria 1) to draw a 2nd header row ("Agosto 2026")
+ * above the day numbers, so it's obvious which month a given column
+ * belongs to without having to count/recognize the "…29, 30, 31, 1, 2…"
+ * rollover. Generic over any period list (keyed off each period's own
+ * `start` date), but only meaningful when periods are day-sized.
+ */
+export function groupPeriodsByMonth(periods: Period[]): MonthGroup[] {
+  const groups: MonthGroup[] = [];
+  periods.forEach((p, i) => {
+    const monthKey = p.start.slice(0, 7);
+    const last = groups[groups.length - 1];
+    if (last && last.key === monthKey) {
+      last.span++;
+      return;
+    }
+    const [y, m] = monthKey.split('-').map(Number);
+    groups.push({ key: monthKey, label: `${MONTH_FULL[m - 1]} ${y}`, startIdx: i, span: 1 });
+  });
+  return groups;
 }
 
 /** Index + fractional position of `todayISO` within its own period, for

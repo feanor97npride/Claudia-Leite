@@ -398,6 +398,7 @@ export default function App() {
               <RoadmapTimeline
                 objetivos={objetivos}
                 atividades={atividades}
+                projects={draft?.projects ?? []}
                 currentWeekStart={draft?.weekStart ?? todayISO()}
                 readOnly={user.role === 'viewer'}
                 onEditAtividade={handleEditAtividadeFromTimeline}

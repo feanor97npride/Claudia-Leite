@@ -479,7 +479,41 @@ auditoria que o próprio usuário não possa editar.
   progresso continua fixa em verde (`STATUS_META.on_track`) — o mockup
   de referência mostrava uma variação por %, mas isso já tinha sido
   descartado a pedido do usuário logo antes.
-
+- **Timeline: separação de meses na visão "Dia" + Projetos da Semana**
+  (`timelinePeriods.ts`, `RoadmapTimeline.tsx`), a partir de um problema de
+  legibilidade relatado pelo usuário (na visão "Dia", a virada de mês —
+  "...29, 30, 31, 1, 2..." — passa despercebida sem contar as colunas):
+  - **Divisor de mês**: uma linha vertical mais forte (`border-l-2
+    border-slate-400`) marca a fronteira entre o último dia de um mês e o
+    primeiro do seguinte, atravessando toda a altura da grade. Só aparece
+    na granularidade "Dia" — Semana/Mês/Trimestre continuam com o
+    comportamento de sempre. A posição de cada linha é medida via
+    `ResizeObserver` + `getBoundingClientRect()` da própria coluna
+    (`periodColRefs`), igual ao já feito para a linha "hoje" e o
+    `HoverPreviewCard` — não dá para assumir uma largura fixa de coluna
+    porque o grid usa `minmax(...)`.
+  - **Cabeçalho em duas linhas**: uma nova função `groupPeriodsByMonth`
+    (`timelinePeriods.ts`) agrupa dias consecutivos do mesmo mês
+    (`{key, label: "Agosto 2026", startIdx, span}`); a célula de canto
+    "Atividade" ganha `gridRow: 'span 2'` só quando há grupos de mês, e o
+    resto se resolve sozinho pelo auto-placement do CSS Grid — os rótulos
+    de mês (linha 1) e os números de dia (linha 2) preenchem as colunas
+    restantes sem precisar de índices manuais.
+  - **Projetos / Iniciativas da Semana na Timeline**: os projetos de
+    narrativa livre do Editor (`ProjectCard`, sem entrega/objetivo
+    associado) agora aparecem como um grupo adicional ("Projetos da
+    Semana"), com um filtro dedicado (chip roxo, independente de
+    Categoria/Status/Responsável — esses são específicos de Atividade, e
+    `Project` usa um enum de status diferente, `STATUS_META`, então não
+    faria sentido reaproveitar os mesmos filtros). Cada projeto vira uma
+    linha com um losango roxo + badge "MANUAL" + o badge de status já
+    existente (mesmas cores de `STATUS_META`, para consistência visual).
+    **Decisão de design**: `Project` não tem campos de início/fim
+    planejado no modelo de dados (só `Atividade` tem) — em vez de inventar
+    um intervalo ou migrar o schema, cada projeto é mostrado como um
+    marcador pontual (losango) na data da própria semana do relatório
+    (`weekStart`), a única data genuinamente associada a um Project via
+    seu Report pai.
 **Ainda não feito** (próximos passos de UX, menor prioridade): revisão
 formal de contraste de cor (WCAG) e responsividade em telas mobile/tablet,
 e uma estrutura de roles mais extensível (hoje um enum fixo `admin`/`viewer`,

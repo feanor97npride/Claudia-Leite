@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Atividade, Objetivo, ObjetivoId, TimelineVisualStatus } from '../../types';
-import { OBJETIVO_COLOR, TIMELINE_STATUS_META } from '../../types';
+import type { Atividade, Objetivo, ObjetivoId, Project, TimelineVisualStatus } from '../../types';
+import { OBJETIVO_COLOR, STATUS_META, TIMELINE_STATUS_META } from '../../types';
 import {
   atividadesForObjetivo,
   computeBarFillPercent,
@@ -9,7 +9,13 @@ import {
   timelineVisualStatus,
 } from '../../lib/roadmap';
 import type { ZoomLevel } from '../../lib/timelinePeriods';
-import { ZOOM_LEVEL_META, buildPeriods, periodColumnRange, todayPeriodPosition } from '../../lib/timelinePeriods';
+import {
+  ZOOM_LEVEL_META,
+  buildPeriods,
+  groupPeriodsByMonth,
+  periodColumnRange,
+  todayPeriodPosition,
+} from '../../lib/timelinePeriods';
 import { todayISO } from '../../utils/date';
 import AtividadeDetailModal from './AtividadeDetailModal';
 import HoverPreviewCard from './HoverPreviewCard';
@@ -17,10 +23,20 @@ import HoverPreviewCard from './HoverPreviewCard';
 interface Props {
   objetivos: Objetivo[];
   atividades: Atividade[];
+  /** The current report's own free-narrative "Projetos / Iniciativas da
+   *  Semana" — not governed roadmap data, shown as its own optional group
+   *  (Melhoria 2) since they have no plannedStart/plannedEnd of their own,
+   *  only the report's single weekStart. */
+  projects: Project[];
   currentWeekStart: string;
   readOnly: boolean;
   onEditAtividade: (objetivoId: ObjetivoId, atividadeId: string) => void;
 }
+
+/** Not a real ObjetivoId — a manual color token for the synthetic
+ *  "Projetos da Semana" group, purple to match the "Extra" badge already
+ *  used elsewhere for ad-hoc (non-governed) items. */
+const MANUAL_GROUP_COLOR = { tint: '#faf5ff', text: '#7e22ce', bar: '#a855f7' };
 
 const HOVER_SHOW_DELAY = 250;
 const HOVER_HIDE_DELAY = 150;
@@ -35,7 +51,14 @@ type PreviewState = { atividade: Atividade; objetivo: Objetivo; anchorRect: DOMR
  * atividades com início E fim planejados definidos entram no gráfico —
  * sem inventar datas para o que ainda não foi planejado.
  */
-export default function RoadmapTimeline({ objetivos, atividades, currentWeekStart, readOnly, onEditAtividade }: Props) {
+export default function RoadmapTimeline({
+  objetivos,
+  atividades,
+  projects,
+  currentWeekStart,
+  readOnly,
+  onEditAtividade,
+}: Props) {
   const containerRef = useRef<HTMLElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const periodColRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -43,8 +66,11 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
   const [selected, setSelected] = useState<{ atividade: Atividade; objetivo: Objetivo } | null>(null);
   const [preview, setPreview] = useState<PreviewState>(null);
   const [todayLeft, setTodayLeft] = useState<number | null>(null);
+  const [monthDividerLefts, setMonthDividerLefts] = useState<number[]>([]);
   const [zoom, setZoom] = useState<ZoomLevel>('month');
   const [collapsed, setCollapsed] = useState<Set<ObjetivoId>>(new Set());
+  const [manualCollapsed, setManualCollapsed] = useState(false);
+  const [showManualProjects, setShowManualProjects] = useState(true);
   const [categoriaFilter, setCategoriaFilter] = useState<Set<ObjetivoId>>(new Set());
   const [statusFilter, setStatusFilter] = useState<Set<TimelineVisualStatus>>(new Set());
   const [responsavelFilter, setResponsavelFilter] = useState<Set<string>>(new Set());
@@ -63,6 +89,10 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
           objetivos.reduce((min, o) => (o.periodStart < min ? o.periodStart : min), objetivos[0].periodStart),
           objetivos.reduce((max, o) => (o.periodEnd > max ? o.periodEnd : max), objetivos[0].periodEnd),
         );
+  // Melhoria 1: only meaningful at 'day' zoom — grouping week/month/quarter
+  // columns by calendar month wouldn't make sense (they already span/exceed
+  // a month each).
+  const monthGroups = zoom === 'day' ? groupPeriodsByMonth(periods) : [];
   const todayPosition = todayPeriodPosition(periods, today);
 
   useEffect(() => {
@@ -100,6 +130,38 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
       window.removeEventListener('resize', recompute);
     };
   }, [todayPosition?.idx, todayPosition?.fraction, isFullscreen]);
+
+  // Melhoria 1: stronger divider lines at each month boundary, 'day' zoom
+  // only — same two-pass measurement idea as the "hoje" marker above (day
+  // columns don't have a fixed px width either).
+  useEffect(() => {
+    if (zoom !== 'day' || monthGroups.length <= 1) {
+      setMonthDividerLefts([]);
+      return;
+    }
+    function recompute() {
+      const container = gridRef.current;
+      if (!container) return;
+      const containerRect = container.getBoundingClientRect();
+      const lefts: number[] = [];
+      // Skip the first group — there's no boundary before the very first
+      // displayed column.
+      for (let i = 1; i < monthGroups.length; i++) {
+        const col = periodColRefs.current[monthGroups[i].startIdx];
+        if (!col) continue;
+        lefts.push(col.getBoundingClientRect().left - containerRect.left);
+      }
+      setMonthDividerLefts(lefts);
+    }
+    recompute();
+    const observer = new ResizeObserver(recompute);
+    if (gridRef.current) observer.observe(gridRef.current);
+    window.addEventListener('resize', recompute);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', recompute);
+    };
+  }, [zoom, periods.length, isFullscreen]);
 
   useEffect(() => {
     return () => {
@@ -258,6 +320,19 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
     }))
     .filter((group) => group.rows.length > 0);
 
+  // Melhoria 2: the report's free-narrative "Projetos / Iniciativas da
+  // Semana" have no plannedStart/plannedEnd of their own (they're a weekly
+  // snapshot tied to one report, not a persistent governed item with a
+  // date range) — so each one is placed as a single-day point at the
+  // report's own weekStart, not a bar. Falls off the Timeline entirely if
+  // that week is outside the displayed period range (same "no range, no
+  // row" convention already used for atividades).
+  const manualEligibleRows = projects
+    .map((project) => ({ project, range: periodColumnRange(currentWeekStart, currentWeekStart, periods) }))
+    .filter((r): r is { project: Project; range: { startIdx: number; span: number } } => r.range !== null);
+  const manualRows = showManualProjects ? manualEligibleRows : [];
+  const hasAnyVisibleGroup = groups.length > 0 || manualRows.length > 0;
+
   // Zebra striping index — a plain counter (not state) incremented in
   // render order as rows are mapped below, so alternating rows read
   // consistently regardless of which groups are collapsed/filtered out.
@@ -301,7 +376,7 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
           </button>
         </div>
       </div>
-      {eligibleRows.length === 0 ? (
+      {eligibleRows.length === 0 && manualEligibleRows.length === 0 ? (
         <p className="text-xs text-slate-400 italic">
           Nenhuma atividade com início e fim planejados definidos ainda — defina o "Prazo" de uma
           atividade no Roadmap acima (modo de edição de um Objetivo) para ela aparecer aqui.
@@ -375,6 +450,33 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                 })}
               </div>
             )}
+            {manualEligibleRows.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowManualProjects((v) => !v)}
+                  aria-pressed={showManualProjects}
+                  title="Projetos/Iniciativas da Semana cadastrados no Editor (narrativa livre) — não fazem parte do roadmap governado"
+                  className={`flex items-center gap-1 rounded-full px-2 py-0.5 border transition-colors cursor-pointer ${
+                    showManualProjects
+                      ? 'text-white'
+                      : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                  }`}
+                  style={
+                    showManualProjects
+                      ? { borderColor: MANUAL_GROUP_COLOR.bar, backgroundColor: MANUAL_GROUP_COLOR.bar }
+                      : undefined
+                  }
+                >
+                  <span
+                    aria-hidden="true"
+                    className="w-2 h-2 rotate-45 rounded-[1px] shrink-0"
+                    style={{ backgroundColor: showManualProjects ? '#ffffff' : MANUAL_GROUP_COLOR.bar }}
+                  />
+                  Projetos da Semana
+                </button>
+              </div>
+            )}
             {hasActiveFilters && (
               <button
                 type="button"
@@ -389,7 +491,7 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
               </button>
             )}
           </div>
-          {groups.length === 0 ? (
+          {!hasAnyVisibleGroup ? (
             <p className="text-xs text-slate-400 italic">Nenhuma atividade corresponde aos filtros selecionados.</p>
           ) : (
         <div className="overflow-x-auto">
@@ -398,9 +500,28 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
             className="grid text-[11px] min-w-[720px] relative"
             style={{ gridTemplateColumns: `176px repeat(${periods.length}, minmax(${ZOOM_LEVEL_META[zoom].minColWidth}px, 1fr))` }}
           >
-            <div className="sticky left-0 z-20 bg-slate-900 text-white font-semibold px-2 py-1.5 rounded-tl-md shadow-[3px_0_6px_-2px_rgba(0,0,0,0.35)]">
+            <div
+              className="sticky left-0 z-20 bg-slate-900 text-white font-semibold px-2 py-1.5 rounded-tl-md shadow-[3px_0_6px_-2px_rgba(0,0,0,0.35)]"
+              style={{ gridRow: monthGroups.length > 0 ? 'span 2' : undefined }}
+            >
               Atividade
             </div>
+            {/* Melhoria 1: month header row, 'day' zoom only — sits above
+               the day-number row via CSS Grid auto-placement (the
+               "Atividade" corner above spans both rows, so this row's
+               cells naturally start at column 2). */}
+            {monthGroups.map((g, gi) => (
+              <div
+                key={g.key}
+                title={g.label}
+                className={`text-white text-center font-semibold px-1 py-1 text-[10px] uppercase tracking-wide truncate ${
+                  gi % 2 === 0 ? 'bg-slate-900' : 'bg-slate-800'
+                }`}
+                style={{ gridColumn: `span ${g.span}` }}
+              >
+                {g.label}
+              </div>
+            ))}
             {periods.map((p, i) => (
               <div
                 key={p.key}
@@ -425,6 +546,17 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                 <span className="absolute -top-0.5 -left-[3px] w-2 h-2 rounded-full bg-red-500" />
               </div>
             )}
+            {/* Melhoria 1: a stronger divider at each month boundary,
+               spanning the full grid height (drawn over the body, under
+               the "hoje" line and the sticky name column). */}
+            {monthDividerLefts.map((left, i) => (
+              <div
+                key={`month-divider-${i}`}
+                aria-hidden="true"
+                className="absolute top-0 bottom-0 z-[5] pointer-events-none border-l-2 border-slate-400"
+                style={{ left }}
+              />
+            ))}
             {groups.map((group) => {
               const color = OBJETIVO_COLOR[group.objetivo.id];
               const isCollapsed = collapsed.has(group.objetivo.id);
@@ -581,6 +713,92 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                 </div>
               );
             })}
+            {/* Melhoria 2: "Projetos / Iniciativas da Semana" from the
+               Editor — free narrative, not governed roadmap data, so no
+               plannedStart/plannedEnd of its own. Placed as a single-day
+               point (diamond marker) at the report's own weekStart rather
+               than a bar, since a date RANGE would be fabricated data;
+               visually distinguished with the purple "Manual" badge/color
+               already used elsewhere in the app for ad-hoc items. */}
+            {manualRows.length > 0 && (
+              <div className="contents">
+                <button
+                  type="button"
+                  onClick={() => setManualCollapsed((v) => !v)}
+                  aria-expanded={!manualCollapsed}
+                  className="w-full flex items-center justify-between gap-2 px-2 py-1 font-semibold border-b text-left cursor-pointer hover:brightness-95 transition-[filter]"
+                  style={{
+                    backgroundColor: MANUAL_GROUP_COLOR.tint,
+                    color: MANUAL_GROUP_COLOR.text,
+                    borderColor: MANUAL_GROUP_COLOR.bar,
+                    gridColumn: `span ${periods.length + 1}`,
+                  }}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span aria-hidden="true">{manualCollapsed ? '▸' : '▾'}</span>
+                    Projetos da Semana
+                    <span className="text-[10px] font-normal opacity-70 hidden sm:inline">(narrativa livre)</span>
+                  </span>
+                </button>
+                {!manualCollapsed &&
+                  manualRows.map(({ project, range }) => {
+                    rowIndex++;
+                    const zebra = rowIndex % 2 === 1;
+                    const before = range.startIdx;
+                    const after = periods.length - range.startIdx - range.span;
+                    const meta = STATUS_META[project.status];
+                    return (
+                      <div key={project.id} className="contents">
+                        <div
+                          className={`sticky left-0 z-[15] shadow-[3px_0_6px_-2px_rgba(0,0,0,0.12)] border-b border-slate-100 px-2 py-2.5 flex items-center gap-1.5 min-w-0 text-slate-600 ${
+                            zebra ? 'bg-slate-50' : 'bg-white'
+                          }`}
+                          title={`${project.name || 'Projeto sem nome'} — ${meta.label} (semana de ${currentWeekStart})`}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="w-2 h-2 rotate-45 rounded-[1px] shrink-0"
+                            style={{ backgroundColor: meta.color }}
+                          />
+                          <span className="flex-1 min-w-0 truncate">{project.name || 'Projeto sem nome'}</span>
+                          <span className="text-[8px] font-bold uppercase tracking-wide bg-purple-100 text-purple-700 rounded px-1 py-0.5 shrink-0">
+                            Manual
+                          </span>
+                          <span
+                            className="text-[9px] font-semibold rounded px-1.5 py-0.5 shrink-0"
+                            style={{ backgroundColor: `${meta.color}1a`, color: meta.color }}
+                          >
+                            {meta.label}
+                          </span>
+                        </div>
+                        {before > 0 && (
+                          <div
+                            className={`border-b border-l border-slate-100 ${zebra ? 'bg-slate-50/60' : ''}`}
+                            style={{ gridColumn: `span ${before}` }}
+                          />
+                        )}
+                        <div
+                          className={`border-b border-l border-slate-100 relative py-0.5 ${zebra ? 'bg-slate-50/60' : ''}`}
+                          style={{ gridColumn: `span ${range.span}` }}
+                        >
+                          <div
+                            aria-hidden="true"
+                            title={`${project.name || 'Projeto sem nome'} — ${meta.label}`}
+                            className="absolute top-1/2 left-1/2 w-2.5 h-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px]"
+                            style={{ backgroundColor: meta.color }}
+                          />
+                        </div>
+                        {after > 0 && (
+                          <div
+                            className={`border-b border-l border-slate-100 ${zebra ? 'bg-slate-50/60' : ''}`}
+                            style={{ gridColumn: `span ${after}` }}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </div>
         </div>
           )}
