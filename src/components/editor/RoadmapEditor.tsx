@@ -420,6 +420,9 @@ function ObjetivoCard({
   const [error, setError] = useState('');
   const [addingExtra, setAddingExtra] = useState(false);
   const [newExtraName, setNewExtraName] = useState('');
+  const [newExtraStart, setNewExtraStart] = useState('');
+  const [newExtraEnd, setNewExtraEnd] = useState('');
+  const [addExtraError, setAddExtraError] = useState('');
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
   const items = atividadesForObjetivo(objetivo.id, atividades);
@@ -547,9 +550,23 @@ function ObjetivoCard({
   async function handleAddExtra() {
     const name = newExtraName.trim();
     if (!name) return;
+    if ((newExtraStart && !newExtraEnd) || (!newExtraStart && newExtraEnd)) {
+      setAddExtraError('Informe início e fim do prazo juntos, ou deixe os dois em branco.');
+      return;
+    }
+    if (newExtraStart && newExtraEnd && !(newExtraStart < newExtraEnd)) {
+      setAddExtraError('A data de início deve ser anterior à data de fim.');
+      return;
+    }
+    setAddExtraError('');
     try {
-      await onAddExtra(objetivo.id, name);
+      const created = await onAddExtra(objetivo.id, name);
+      if (newExtraStart && newExtraEnd) {
+        await onUpdateAtividade(created.id, { plannedStart: newExtraStart, plannedEnd: newExtraEnd });
+      }
       setNewExtraName('');
+      setNewExtraStart('');
+      setNewExtraEnd('');
       setAddingExtra(false);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Não foi possível adicionar a atividade.', 'error');
@@ -714,29 +731,55 @@ function ObjetivoCard({
       ) : (
         !readOnly &&
         (addingExtra ? (
-          <div className="flex gap-2">
-            <input
-              autoFocus
-              value={newExtraName}
-              onChange={(e) => setNewExtraName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void handleAddExtra();
-                if (e.key === 'Escape') {
-                  setAddingExtra(false);
-                  setNewExtraName('');
-                }
-              }}
-              placeholder="Nome da atividade extra"
-              aria-label="Nome da nova atividade extra"
-              className={`flex-1 ${INPUT_CLASS}`}
-            />
-            <button
-              type="button"
-              onClick={() => void handleAddExtra()}
-              className="text-xs font-medium bg-slate-900 text-white rounded-lg px-3 py-1.5 hover:bg-slate-800 transition-colors"
-            >
-              Adicionar
-            </button>
+          <div className="flex flex-col gap-1.5">
+            <div className="flex gap-2">
+              <input
+                autoFocus
+                value={newExtraName}
+                onChange={(e) => setNewExtraName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleAddExtra();
+                  if (e.key === 'Escape') {
+                    setAddingExtra(false);
+                    setNewExtraName('');
+                    setNewExtraStart('');
+                    setNewExtraEnd('');
+                    setAddExtraError('');
+                  }
+                }}
+                placeholder="Nome da atividade extra"
+                aria-label="Nome da nova atividade extra"
+                className={`flex-1 ${INPUT_CLASS}`}
+              />
+              <button
+                type="button"
+                onClick={() => void handleAddExtra()}
+                className="text-xs font-medium bg-slate-900 text-white rounded-lg px-3 py-1.5 hover:bg-slate-800 transition-colors shrink-0"
+              >
+                Adicionar
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] text-slate-400 shrink-0">
+                Prazo (opcional — para já aparecer na Roadmap Timeline):
+              </span>
+              <input
+                type="date"
+                value={newExtraStart}
+                onChange={(e) => setNewExtraStart(e.target.value)}
+                aria-label="Início planejado da nova atividade extra"
+                className={`${INPUT_CLASS} shrink-0`}
+              />
+              <span className="text-[10px] text-slate-400 shrink-0">até</span>
+              <input
+                type="date"
+                value={newExtraEnd}
+                onChange={(e) => setNewExtraEnd(e.target.value)}
+                aria-label="Fim planejado da nova atividade extra"
+                className={`${INPUT_CLASS} shrink-0`}
+              />
+            </div>
+            {addExtraError && <p className="text-[11px] font-medium text-red-600">{addExtraError}</p>}
           </div>
         ) : (
           <button

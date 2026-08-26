@@ -1,6 +1,6 @@
 import type { Objetivo } from '../types';
 
-function toISODate(d: Date): string {
+export function toISODate(d: Date): string {
   const tz = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
   return tz.toISOString().slice(0, 10);
 }
@@ -86,31 +86,3 @@ export function isWithinWeek(dateISO: string, weekStartISO: string): boolean {
   return d >= start && d <= start + 6 * 24 * 60 * 60 * 1000;
 }
 
-/** "2026-08-15" -> "2026-08" (used to bucket a date into a Gantt month column). */
-export function monthKey(iso: string): string {
-  return iso.slice(0, 7);
-}
-
-/** "2026-08" -> "ago/26" */
-export function monthKeyLabel(key: string): string {
-  const [y, m] = key.split('-').map(Number);
-  return `${MONTH_ABBR[m - 1]}/${String(y).slice(2)}`;
-}
-
-/** Every month key ("YYYY-MM") from startISO's month through endISO's month, inclusive. */
-export function monthsBetween(startISO: string, endISO: string): string[] {
-  let y = Number(startISO.slice(0, 4));
-  let m = Number(startISO.slice(5, 7));
-  const endY = Number(endISO.slice(0, 4));
-  const endM = Number(endISO.slice(5, 7));
-  const keys: string[] = [];
-  while (y < endY || (y === endY && m <= endM)) {
-    keys.push(`${y}-${String(m).padStart(2, '0')}`);
-    m++;
-    if (m > 12) {
-      m = 1;
-      y++;
-    }
-  }
-  return keys;
-}

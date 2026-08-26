@@ -6,10 +6,11 @@ import {
   computeBarFillPercent,
   computeObjetivoProgress,
   isVisibleThisWeek,
-  monthColumnRange,
   timelineVisualStatus,
 } from '../../lib/roadmap';
-import { monthKey, monthKeyLabel, monthsBetween, todayISO } from '../../utils/date';
+import type { ZoomLevel } from '../../lib/timelinePeriods';
+import { ZOOM_LEVEL_META, buildPeriods, periodColumnRange, todayPeriodPosition } from '../../lib/timelinePeriods';
+import { todayISO } from '../../utils/date';
 import AtividadeDetailModal from './AtividadeDetailModal';
 import HoverPreviewCard from './HoverPreviewCard';
 
@@ -37,11 +38,12 @@ type PreviewState = { atividade: Atividade; objetivo: Objetivo; anchorRect: DOMR
 export default function RoadmapTimeline({ objetivos, atividades, currentWeekStart, readOnly, onEditAtividade }: Props) {
   const containerRef = useRef<HTMLElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
-  const monthColRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const periodColRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selected, setSelected] = useState<{ atividade: Atividade; objetivo: Objetivo } | null>(null);
   const [preview, setPreview] = useState<PreviewState>(null);
   const [todayLeft, setTodayLeft] = useState<number | null>(null);
+  const [zoom, setZoom] = useState<ZoomLevel>('month');
   const [collapsed, setCollapsed] = useState<Set<ObjetivoId>>(new Set());
   const [categoriaFilter, setCategoriaFilter] = useState<Set<ObjetivoId>>(new Set());
   const [statusFilter, setStatusFilter] = useState<Set<TimelineVisualStatus>>(new Set());
@@ -53,19 +55,15 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
   // Computed unconditionally (before the objetivos.length===0 early return
   // below) so the "today" marker effect — a hook — can depend on it without
   // breaking the Rules of Hooks.
-  const months =
+  const periods =
     objetivos.length === 0
       ? []
-      : monthsBetween(
+      : buildPeriods(
+          zoom,
           objetivos.reduce((min, o) => (o.periodStart < min ? o.periodStart : min), objetivos[0].periodStart),
           objetivos.reduce((max, o) => (o.periodEnd > max ? o.periodEnd : max), objetivos[0].periodEnd),
         );
-  const todayMonthIdx = months.indexOf(monthKey(today));
-  const todayDayFraction = (() => {
-    const [y, m] = today.slice(0, 7).split('-').map(Number);
-    const daysInMonth = new Date(y, m, 0).getDate();
-    return (Number(today.slice(8, 10)) - 1) / daysInMonth;
-  })();
+  const todayPosition = todayPeriodPosition(periods, today);
 
   useEffect(() => {
     function handleFullscreenChange() {
@@ -75,23 +73,23 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
-  // "Hoje" marker: month columns use `minmax(56px, 1fr)`, not a fixed width,
-  // so its pixel position is measured from the actually-rendered column
-  // (two-pass, same idea as HoverPreviewCard) rather than computed from
-  // guessed widths — kept accurate across window resizes and the
-  // fullscreen toggle.
+  // "Hoje" marker: period columns use a variable `minmax(...)` width, not a
+  // fixed px value, so its pixel position is measured from the
+  // actually-rendered column (two-pass, same idea as HoverPreviewCard)
+  // rather than computed from guessed widths — kept accurate across window
+  // resizes, zoom-level changes and the fullscreen toggle.
   useEffect(() => {
-    if (todayMonthIdx === -1) {
+    if (!todayPosition) {
       setTodayLeft(null);
       return;
     }
     function recompute() {
-      const col = monthColRefs.current[todayMonthIdx];
+      const col = periodColRefs.current[todayPosition!.idx];
       const container = gridRef.current;
       if (!col || !container) return;
       const colRect = col.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
-      setTodayLeft(colRect.left - containerRect.left + colRect.width * todayDayFraction);
+      setTodayLeft(colRect.left - containerRect.left + colRect.width * todayPosition!.fraction);
     }
     recompute();
     const observer = new ResizeObserver(recompute);
@@ -101,7 +99,7 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
       observer.disconnect();
       window.removeEventListener('resize', recompute);
     };
-  }, [todayMonthIdx, todayDayFraction, isFullscreen]);
+  }, [todayPosition?.idx, todayPosition?.fraction, isFullscreen]);
 
   useEffect(() => {
     return () => {
@@ -254,7 +252,7 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
         .filter((r) => r.objetivo.id === objetivo.id)
         .map(({ atividade }) => ({
           atividade,
-          range: monthColumnRange(atividade.plannedStart, atividade.plannedEnd, months),
+          range: periodColumnRange(atividade.plannedStart, atividade.plannedEnd, periods),
         }))
         .filter((row): row is typeof row & { range: { startIdx: number; span: number } } => row.range !== null),
     }))
@@ -274,17 +272,34 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
           : 'rounded-xl border border-slate-200 bg-white p-4'
       }
     >
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Roadmap — Visão Timeline</h2>
-        <button
-          type="button"
-          onClick={() => void toggleFullscreen()}
-          title={isFullscreen ? 'Sair da tela cheia' : 'Expandir para tela cheia'}
-          aria-label={isFullscreen ? 'Sair da tela cheia' : 'Expandir para tela cheia'}
-          className="text-[11px] font-medium text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded px-2 py-1 transition-colors shrink-0"
-        >
-          {isFullscreen ? '⤡ Sair da tela cheia' : '⤢ Tela cheia'}
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5" role="group" aria-label="Zoom temporal">
+            {(Object.keys(ZOOM_LEVEL_META) as ZoomLevel[]).map((z) => (
+              <button
+                key={z}
+                type="button"
+                onClick={() => setZoom(z)}
+                aria-pressed={zoom === z}
+                className={`text-[11px] font-medium rounded px-2 py-1 transition-colors cursor-pointer ${
+                  zoom === z ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                {ZOOM_LEVEL_META[z].label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => void toggleFullscreen()}
+            title={isFullscreen ? 'Sair da tela cheia' : 'Expandir para tela cheia'}
+            aria-label={isFullscreen ? 'Sair da tela cheia' : 'Expandir para tela cheia'}
+            className="text-[11px] font-medium text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded px-2 py-1 transition-colors cursor-pointer"
+          >
+            {isFullscreen ? '⤡ Sair da tela cheia' : '⤢ Tela cheia'}
+          </button>
+        </div>
       </div>
       {eligibleRows.length === 0 ? (
         <p className="text-xs text-slate-400 italic">
@@ -381,22 +396,23 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
           <div
             ref={gridRef}
             className="grid text-[11px] min-w-[720px] relative"
-            style={{ gridTemplateColumns: `176px repeat(${months.length}, minmax(56px, 1fr))` }}
+            style={{ gridTemplateColumns: `176px repeat(${periods.length}, minmax(${ZOOM_LEVEL_META[zoom].minColWidth}px, 1fr))` }}
           >
             <div className="sticky left-0 z-20 bg-slate-900 text-white font-semibold px-2 py-1.5 rounded-tl-md shadow-[3px_0_6px_-2px_rgba(0,0,0,0.35)]">
               Atividade
             </div>
-            {months.map((m, i) => (
+            {periods.map((p, i) => (
               <div
-                key={m}
+                key={p.key}
                 ref={(el) => {
-                  monthColRefs.current[i] = el;
+                  periodColRefs.current[i] = el;
                 }}
+                title={p.start === p.end ? p.start : `${p.start} – ${p.end}`}
                 className={`bg-slate-800 text-white text-center font-mono font-medium px-1 py-1.5 ${
-                  i === months.length - 1 ? 'rounded-tr-md' : ''
+                  i === periods.length - 1 ? 'rounded-tr-md' : ''
                 }`}
               >
-                {monthKeyLabel(m)}
+                {p.label}
               </div>
             ))}
             {todayLeft !== null && (
@@ -422,7 +438,7 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                     onClick={() => toggleCollapse(group.objetivo.id)}
                     aria-expanded={!isCollapsed}
                     className="w-full flex items-center justify-between gap-2 px-2 py-1 font-semibold border-b text-left cursor-pointer hover:brightness-95 transition-[filter]"
-                    style={{ backgroundColor: color.tint, color: color.text, borderColor: color.bar, gridColumn: `span ${months.length + 1}` }}
+                    style={{ backgroundColor: color.tint, color: color.text, borderColor: color.bar, gridColumn: `span ${periods.length + 1}` }}
                   >
                     <span className="flex items-center gap-1.5">
                       <span aria-hidden="true">{isCollapsed ? '▸' : '▾'}</span>
@@ -436,7 +452,7 @@ export default function RoadmapTimeline({ objetivos, atividades, currentWeekStar
                     rowIndex++;
                     const zebra = rowIndex % 2 === 1;
                     const before = range.startIdx;
-                    const after = months.length - range.startIdx - range.span;
+                    const after = periods.length - range.startIdx - range.span;
                     const openDetail = () => {
                       clearTimers();
                       setPreview(null);

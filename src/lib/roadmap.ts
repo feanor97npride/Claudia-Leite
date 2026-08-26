@@ -1,5 +1,5 @@
 import type { Atividade, ActivityKind, Objetivo, ObjetivoId, RoadmapSnapshot, TimelineVisualStatus } from '../types';
-import { currentWeekOfObjetivo, isWithinWeek, monthKey } from '../utils/date';
+import { currentWeekOfObjetivo, isWithinWeek } from '../utils/date';
 
 // Objetivo/Atividade are now server-authoritative (see /api/objetivos,
 // /api/atividades and server/roadmap.ts) — seeding happens once on the
@@ -22,27 +22,6 @@ export function isVisibleThisWeek(atividade: Atividade, currentWeekStart: string
   if (atividade.kind !== 'extra') return true;
   if (!atividade.weekStart) return true;
   return atividade.weekStart === currentWeekStart;
-}
-
-/**
- * Which month columns (0-based, inclusive span) an atividade's planned range
- * occupies in a Gantt-style timeline whose columns are the given month keys.
- * Clamps to the visible range if the planned dates fall outside it (should
- * not normally happen, since objetivo periods bound the quarter) rather than
- * failing to render the bar at all.
- */
-export function monthColumnRange(
-  plannedStart: string,
-  plannedEnd: string,
-  months: string[],
-): { startIdx: number; span: number } | null {
-  if (months.length === 0) return null;
-  const startFound = months.indexOf(monthKey(plannedStart));
-  const endFound = months.indexOf(monthKey(plannedEnd));
-  if (startFound === -1 && endFound === -1) return null;
-  const startIdx = startFound === -1 ? 0 : startFound;
-  const endIdx = endFound === -1 ? months.length - 1 : endFound;
-  return { startIdx, span: Math.max(1, endIdx - startIdx + 1) };
 }
 
 /**

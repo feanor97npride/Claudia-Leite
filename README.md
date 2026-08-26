@@ -316,6 +316,35 @@ auditoria que o próprio usuário não possa editar.
     causa do `align-items: stretch` padrão do Grid), passando de ~24px
     para ~37px de altura por linha — mais fácil de tocar com precisão em
     touch, sem inchar demais uma visão que já é densa por natureza.
+- **Fase 4 do redesign da Timeline** — evolução funcional (itens 1 e 3 do
+  escopo; item 2, linhas de dependência entre atividades, foi adiado a
+  pedido do usuário: exigiria um campo novo no modelo de dados + migração
+  + endpoint + UI, o maior risco/esforço da fase):
+  - **Zoom temporal em 4 níveis** (Dia / Semana / Mês / Trimestre), toggle
+    no topo da Timeline ao lado do botão de tela cheia. Reescreve o antigo
+    modelo "uma coluna por mês" (`monthsBetween`/`monthKey`/
+    `monthKeyLabel`/`monthColumnRange`, removidos) para um modelo genérico
+    de "períodos" (`src/lib/timelinePeriods.ts` — `buildPeriods`,
+    `periodColumnRange`, `todayPeriodPosition`): cada nível gera sua
+    própria lista de intervalos `[start, end]` (dia = 1 dia, semana =
+    segunda a domingo, mês = como antes, trimestre = Jan-Mar/Abr-Jun/
+    Jul-Set/Out-Dez), e o resto do componente (posicionamento das barras,
+    linha do "hoje") não precisa saber qual nível está ativo — só recebe a
+    lista de períodos. Cada coluna tem uma largura mínima diferente por
+    nível (Dia menor, Trimestre maior) para manter a densidade
+    proporcional. Em roadmaps de vários trimestres, Dia/Semana geram uma
+    grade bem larga (centenas de colunas) — rolável horizontalmente como
+    o resto do grid, sem paginação/viewport dedicado (não pedido no
+    escopo desta fase).
+  - **Prazo (Início/Fim) já na criação de uma atividade extra** no Editor
+    — antes a atividade extra nascia sem prazo e só aparecia na Roadmap
+    Timeline depois de uma edição separada; agora o formulário "+
+    Adicionar atividade extra" tem 2 campos de data opcionais que, se
+    preenchidos, já ficam salvos assim que a atividade é criada (cria via
+    `onAddExtra`, depois aplica o prazo via `onUpdateAtividade` no mesmo
+    fluxo) — os dois campos são opcionais mas precisam vir juntos (validado
+    antes de enviar, mesmo padrão de validação já usado na edição de
+    prazos existente).
 - Preview em hover (`HoverPreviewCard`) ao passar o mouse sobre uma
   atividade na Timeline (nome ou barra): aparece depois de 250ms parado
   (evita disparo acidental ao passar o mouse rápido), some depois de
