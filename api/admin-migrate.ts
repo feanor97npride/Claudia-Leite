@@ -22,6 +22,17 @@ export default withErrorHandling(async (req: IncomingMessage, res: ServerRespons
     throw new HttpError(405, 'Método não permitido.');
   }
 
-  const applied = await applyPendingMigrations();
-  sendJson(res, 200, { applied, message: applied.length === 0 ? 'Nenhuma migration pendente.' : 'Migrations aplicadas.' });
+  // Bypasses withErrorHandling's generic 500 masking, on purpose and only
+  // here: this route is temporary and admin-gated, and the masked message
+  // gave no way to tell what actually failed.
+  try {
+    const applied = await applyPendingMigrations();
+    sendJson(res, 200, { applied, message: applied.length === 0 ? 'Nenhuma migration pendente.' : 'Migrations aplicadas.' });
+  } catch (err) {
+    sendJson(res, 500, {
+      error: 'Erro ao aplicar migrations.',
+      detail: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+  }
 });
