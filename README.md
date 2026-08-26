@@ -700,19 +700,23 @@ auditoria que o próprio usuário não possa editar.
     status/responsável/descrição, adicionar e salvar subtarefa (com o %
     persistindo e o progresso da barra atualizando de verdade), e ver o
     registro real no Histórico — tudo de ponta a ponta contra o banco.
-- **⚠️ TEMPORÁRIO — `/api/admin-migrate`**: rota admin-only (`requireAuth` +
-  `requireRole(user, 'admin')`) que aplica as migrations pendentes contra o
-  `DATABASE_URL` que a própria Vercel já tem configurado. Existe só porque a
-  Vercel marca `DATABASE_URL` como "sensitive" e não deixa mais ver/copiar o
-  valor pela dashboard — sem isso, não dava para rodar `npm run db:migrate`
-  localmente apontando para produção depois da migration
-  `005_atividade_subtasks.sql`. A lógica de fato foi extraída para
-  `server/migrations.ts` (`applyPendingMigrations`, reaproveitada pelo script
-  `server/migrate.ts` de sempre — sem `pool.end()`/`process.exit`, já que
-  aqui reaproveita o pool compartilhado do app). **Remover
-  `api/admin-migrate.ts` e a entrada correspondente em `vite.config.ts`
-  assim que a migration 005 estiver confirmada em produção** — não é para
-  ficar como rota permanente.
+- **Migration em produção sem acesso ao `DATABASE_URL`**: a Vercel marca
+  `DATABASE_URL` como "sensitive" e não deixa mais ver/copiar o valor pela
+  dashboard, então não dava para rodar `npm run db:migrate` localmente
+  apontando para produção depois da migration
+  `005_atividade_subtasks.sql`. Resolvido criando uma rota temporária
+  admin-only (`/api/admin-migrate`, já removida) que rodava a migration
+  usando o `DATABASE_URL` que a própria Vercel já tinha configurado — a
+  lógica de fato ficou em `server/migrations.ts` (`applyPendingMigrations`,
+  reaproveitada pelo script `server/migrate.ts` de sempre). No caminho,
+  apareceu um segundo bug real: a produção já tinha o schema das migrations
+  001-003 aplicado de antes da tabela `schema_migrations` existir, então
+  essas linhas nunca foram registradas — rodar a migration 003 de novo
+  (sem `IF NOT EXISTS`) falhava com "column already exists" e travava ali,
+  nunca chegando na 005. `applyPendingMigrations` agora reconhece os
+  códigos Postgres de "já existe" (`42701`/`42P07`/`42710`) e, nesse caso,
+  só registra a migration como aplicada em vez de propagar o erro —
+  confirmado funcionando em produção.
 **Ainda não feito** (próximos passos de UX, menor prioridade): revisão
 formal de contraste de cor (WCAG) e responsividade em telas mobile/tablet,
 e uma estrutura de roles mais extensível (hoje um enum fixo `admin`/`viewer`,

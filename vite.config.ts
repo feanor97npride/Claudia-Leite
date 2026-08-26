@@ -14,7 +14,6 @@ const STATIC_API_ROUTES: Record<string, string> = {
   '/api/atividades': '/api/atividades/index.ts',
   '/api/audit-log': '/api/audit-log.ts',
   '/api/reports': '/api/reports.ts',
-  '/api/admin-migrate': '/api/admin-migrate.ts',
 }
 
 function resolveApiFile(pathname: string): string | null {
