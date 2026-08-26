@@ -1,7 +1,7 @@
 import { forwardRef } from 'react';
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
-import type { Atividade, Objetivo, ObjetivoProgressSnapshot, Project, Report } from '../../types';
-import { STATUS_META } from '../../types';
+import type { Atividade, BacklogItem, Objetivo, ObjetivoProgressSnapshot, Project, Report } from '../../types';
+import { BACKLOG_PRIORITY_META, BACKLOG_STATUS_META, OBJETIVO_COLOR, STATUS_META } from '../../types';
 import { buildRoadmapSnapshot } from '../../lib/roadmap';
 import StatusBadge from './StatusBadge';
 import LogoOrigem from './LogoOrigem';
@@ -24,6 +24,7 @@ interface Props {
   report: Report;
   atividades: Atividade[];
   objetivos: Objetivo[];
+  backlogItems: BacklogItem[];
 }
 
 // Fixed export width keeps PNG/PDF output consistent; height grows with
@@ -250,7 +251,47 @@ function ObjetivoCard({ snapshot, index }: { snapshot: ObjetivoProgressSnapshot;
   );
 }
 
-const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report, atividades, objetivos }, ref) => {
+function BacklogRow({ item, objetivos }: { item: BacklogItem; objetivos: Objetivo[] }) {
+  const priorityMeta = BACKLOG_PRIORITY_META[item.priority];
+  const statusMeta = BACKLOG_STATUS_META[item.status];
+  const objetivo = item.objetivoId ? objetivos.find((o) => o.id === item.objetivoId) : null;
+
+  return (
+    <div
+      className="rounded-xl bg-white px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1.5"
+      style={{ border: `1px solid ${LINE}` }}
+    >
+      <span
+        aria-hidden="true"
+        className="w-2 h-2 rounded-full shrink-0"
+        style={{ backgroundColor: objetivo ? OBJETIVO_COLOR[objetivo.id].bar : INK_400 }}
+      />
+      <p className="text-sm font-bold text-slate-900 min-w-[140px] flex-1">{item.name || 'Item de backlog sem nome'}</p>
+      <span className="text-[11px]" style={{ color: INK_600 }}>
+        {objetivo ? objetivo.name : 'Sem categoria'}
+      </span>
+      <span
+        className="text-[10px] font-bold rounded-full px-2 py-0.5 shrink-0"
+        style={{ backgroundColor: `${priorityMeta.color}1A`, color: priorityMeta.color }}
+      >
+        {priorityMeta.label}
+      </span>
+      <span
+        className="text-[10px] font-bold rounded-full px-2 py-0.5 shrink-0"
+        style={{ backgroundColor: `${statusMeta.color}1A`, color: statusMeta.color }}
+      >
+        {statusMeta.label}
+      </span>
+      {item.estimatedDueDate && (
+        <span className="text-[11px]" style={{ color: INK_400 }}>
+          Prazo: {item.estimatedDueDate}
+        </span>
+      )}
+    </div>
+  );
+}
+
+const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report, atividades, objetivos, backlogItems }, ref) => {
   const roadmapData: ObjetivoProgressSnapshot[] =
     report.roadmapSnapshot ?? buildRoadmapSnapshot(atividades, report.weekStart, objetivos);
   const generatedAt = new Intl.DateTimeFormat('pt-BR', {
@@ -273,6 +314,11 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report, atividades, ob
   const insightCount = (highlightLines.length > 0 ? 1 : 0) + (attentionLines.length > 0 ? 1 : 0);
 
   const visibleIndicators = report.indicators.filter((ind) => ind.label.trim() || ind.value.trim());
+
+  const backlogCounts = backlogItems.reduce(
+    (acc, item) => ({ ...acc, [item.status]: acc[item.status] + 1 }),
+    { nao_iniciado: 0, em_andamento: 0, concluido: 0 } as Record<string, number>,
+  );
 
   return (
     <div
@@ -455,6 +501,43 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report, atividades, ob
               <div className="text-[12.5px] leading-snug" style={{ color: INK_600 }}>
                 {renderLines(report.nextSteps)}
               </div>
+            </div>
+          </section>
+        )}
+
+        {/* 7. Backlog pendente — global, independente do report selecionado
+           (mesma fonte de dados exibida ao vivo no Editor e na Timeline). */}
+        {backlogItems.length > 0 && (
+          <section>
+            <SectionTitle n={7}>Backlog Pendente</SectionTitle>
+            <div className="flex flex-wrap gap-4 mb-4">
+              <StatTile icon={IconLayers} color={INK_600} tint="#eef1f7" value={backlogItems.length} label="Total no backlog" />
+              <StatTile
+                icon={IconClock}
+                color={BACKLOG_STATUS_META.nao_iniciado.color}
+                tint={`${BACKLOG_STATUS_META.nao_iniciado.color}1A`}
+                value={backlogCounts.nao_iniciado}
+                label="Não iniciado"
+              />
+              <StatTile
+                icon={IconTrendingUp}
+                color={BACKLOG_STATUS_META.em_andamento.color}
+                tint={`${BACKLOG_STATUS_META.em_andamento.color}1A`}
+                value={backlogCounts.em_andamento}
+                label="Em andamento"
+              />
+              <StatTile
+                icon={IconCheck}
+                color={BACKLOG_STATUS_META.concluido.color}
+                tint={`${BACKLOG_STATUS_META.concluido.color}1A`}
+                value={backlogCounts.concluido}
+                label="Concluído"
+              />
+            </div>
+            <div className="space-y-2">
+              {backlogItems.map((item) => (
+                <BacklogRow key={item.id} item={item} objetivos={objetivos} />
+              ))}
             </div>
           </section>
         )}

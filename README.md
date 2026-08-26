@@ -717,6 +717,39 @@ auditoria que o próprio usuário não possa editar.
   códigos Postgres de "já existe" (`42701`/`42P07`/`42710`) e, nesse caso,
   só registra a migration como aplicada em vez de propagar o erro —
   confirmado funcionando em produção.
+- **Backlog** — uma nova entidade global e persistente (`backlog_items`,
+  migration `006_backlog.sql`), independente de qualquer relatório semanal,
+  seguindo o mesmo princípio já usado para Objetivo/Atividade (e explicitamente
+  o oposto do que Project fazia antes de virar "Atividades da Semana"): um
+  item criado/editado/removido no Editor aparece automaticamente no Snapshot
+  e na Timeline sem precisar recadastrar em nenhum lugar, porque as três telas
+  leem o mesmo estado (`backlogItems` em `App.tsx`), buscado uma vez de
+  `/api/backlog`.
+  - **Campos**: só `name` é obrigatório; `objetivoId` (categoria/objetivo ou
+    "Sem categoria"), `priority` (Alta/Média/Baixa), `status` (Não
+    iniciado/Em andamento/Concluído) e `estimatedDueDate` (opcional) têm
+    default sensato. Sem campo de auditoria/histórico — decisão deliberada de
+    escopo, diferente de Objetivo/Atividade, já que o backlog é
+    propositalmente menos formal/governado.
+  - **Editor**: nova seção "Backlog" (`BacklogItemRow.tsx`), mesmo padrão de
+    accordion das demais seções — "+ Adicionar item ao backlog" já cria e
+    expande o item na hora.
+  - **Snapshot** (`SnapshotView.tsx`, seção "Backlog Pendente"): mostrado
+    **ao vivo** (não congelado como o `roadmapSnapshot`), porque o objetivo
+    explícito era ter uma única fonte de verdade sempre atual — contadores
+    por status + a lista de itens com categoria/prioridade/prazo.
+  - **Roadmap Timeline** (`RoadmapTimeline.tsx`): nova faixa "Backlog",
+    visualmente neutra (cinza, badge "BACKLOG") para não ser confundida com
+    as faixas coloridas dos Objetivos nem com o roxo de "Atividades da
+    Semana". Um item de backlog só tem UMA data própria (`estimatedDueDate`,
+    nunca um intervalo), então é sempre plotado como um marcador pontual — na
+    data estimada quando existe, ou em `createdAt` quando não existe — nunca
+    como barra (evita fabricar um intervalo que o dado não tem). Toggle
+    próprio no filtro do cabeçalho, ao lado de Categoria/Status/Responsável e
+    do toggle de "Atividades da Semana" já existente.
+  - **Não incluído nesta entrega** (fora do pedido original): promoção
+    "Mover para o Roadmap" (transformar um item de backlog numa Atividade
+    formal) — mencionado como evolução futura, não implementado.
 **Ainda não feito** (próximos passos de UX, menor prioridade): revisão
 formal de contraste de cor (WCAG) e responsividade em telas mobile/tablet,
 e uma estrutura de roles mais extensível (hoje um enum fixo `admin`/`viewer`,

@@ -1,18 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Atividade, AtividadePatch, AuthedUser, Objetivo, ObjetivoId, Report, UserProfile } from './types';
+import type { Atividade, AtividadePatch, AuthedUser, BacklogItem, BacklogItemPatch, Objetivo, ObjetivoId, Report, UserProfile } from './types';
 import { ROLE_META } from './types';
 import { getReports } from './lib/storage';
 import { blankReport, duplicateForNextWeek } from './lib/factory';
 import { buildRoadmapSnapshot } from './lib/roadmap';
 import { currentWeekStartISO, todayISO } from './utils/date';
 import {
+  createBacklogItemApi,
   createExtraAtividadeApi,
+  deleteBacklogItemApi,
   deleteExtraAtividadeApi,
   deleteReportApi,
   fetchAtividades,
+  fetchBacklogItems,
   fetchObjetivos,
   fetchReports,
   updateAtividadeApi,
+  updateBacklogItemApi,
   updateObjetivoApi,
   upsertReportApi,
 } from './lib/api';
@@ -40,6 +44,7 @@ export default function App() {
   const [reports, setReports] = useState<Report[]>([]);
   const [atividades, setAtividades] = useState<Atividade[]>([]);
   const [objetivos, setObjetivos] = useState<Objetivo[]>([]);
+  const [backlogItems, setBacklogItems] = useState<BacklogItem[]>([]);
   const [roadmapLoading, setRoadmapLoading] = useState(true);
   const [reportsLoading, setReportsLoading] = useState(true);
   const [reportsError, setReportsError] = useState<string | null>(null);
@@ -90,10 +95,11 @@ export default function App() {
     void loadReports(user, cancelledRef);
 
     setRoadmapLoading(true);
-    Promise.all([fetchObjetivos(), fetchAtividades()])
-      .then(([objs, atvs]) => {
+    Promise.all([fetchObjetivos(), fetchAtividades(), fetchBacklogItems()])
+      .then(([objs, atvs, backlog]) => {
         setObjetivos(objs);
         setAtividades(atvs);
+        setBacklogItems(backlog);
       })
       .catch((err) => showToast(err instanceof Error ? err.message : 'Não foi possível carregar o roadmap.', 'error'))
       .finally(() => setRoadmapLoading(false));
@@ -109,6 +115,7 @@ export default function App() {
     setReports([]);
     setObjetivos([]);
     setAtividades([]);
+    setBacklogItems([]);
     setDraft(null);
     setReportsLoading(true);
     setReportsError(null);
@@ -134,6 +141,22 @@ export default function App() {
   async function handleRemoveExtraAtividade(id: string) {
     await deleteExtraAtividadeApi(id);
     setAtividades((prev) => prev.filter((a) => a.id !== id));
+  }
+
+  async function handleAddBacklogItem() {
+    const created = await createBacklogItemApi('Novo item de backlog');
+    setBacklogItems((prev) => [...prev, created]);
+    return created;
+  }
+
+  async function handleUpdateBacklogItem(id: string, patch: BacklogItemPatch) {
+    const updated = await updateBacklogItemApi(id, patch);
+    setBacklogItems((prev) => prev.map((b) => (b.id === id ? updated : b)));
+  }
+
+  async function handleRemoveBacklogItem(id: string) {
+    await deleteBacklogItemApi(id);
+    setBacklogItems((prev) => prev.filter((b) => b.id !== id));
   }
 
   function handleEditAtividadeFromTimeline(objetivoId: ObjetivoId, atividadeId: string) {
@@ -398,6 +421,10 @@ export default function App() {
                       onUpdateAtividade={handleUpdateAtividade}
                       onAddExtraAtividade={handleAddExtraAtividade}
                       onRemoveExtraAtividade={handleRemoveExtraAtividade}
+                      backlogItems={backlogItems}
+                      onAddBacklogItem={handleAddBacklogItem}
+                      onUpdateBacklogItem={handleUpdateBacklogItem}
+                      onRemoveBacklogItem={handleRemoveBacklogItem}
                       focusAtividade={focusAtividade}
                       onFocusHandled={() => setFocusAtividade(null)}
                     />
@@ -419,6 +446,7 @@ export default function App() {
                 // (manualItems), never scoped to the one currently being
                 // viewed/edited.
                 manualItems={manualItems}
+                backlogItems={backlogItems}
                 currentWeekStart={currentWeekStartISO()}
                 readOnly={user.role === 'viewer'}
                 onEditAtividade={handleEditAtividadeFromTimeline}
@@ -429,7 +457,7 @@ export default function App() {
 
           {view === 'snapshot' && draft && (
             <div className="overflow-x-auto pb-8">
-              <SnapshotView ref={snapshotRef} report={draft} atividades={atividades} objetivos={objetivos} />
+              <SnapshotView ref={snapshotRef} report={draft} atividades={atividades} objetivos={objetivos} backlogItems={backlogItems} />
             </div>
           )}
         </div>

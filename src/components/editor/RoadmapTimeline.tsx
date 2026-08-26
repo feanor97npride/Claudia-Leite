@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Atividade, AtividadePatch, Objetivo, ObjetivoId, Project, TimelineVisualStatus } from '../../types';
-import { OBJETIVO_COLOR, STATUS_META, TIMELINE_STATUS_META } from '../../types';
+import type { Atividade, AtividadePatch, BacklogItem, Objetivo, ObjetivoId, Project, TimelineVisualStatus } from '../../types';
+import { BACKLOG_PRIORITY_META, BACKLOG_STATUS_META, OBJETIVO_COLOR, STATUS_META, TIMELINE_STATUS_META } from '../../types';
 import {
   atividadesForObjetivo,
   computeBarFillPercent,
@@ -48,6 +48,11 @@ interface Props {
    *  point-marker fallback date); an item that does set plannedStart/
    *  plannedEnd gets a normal range bar instead. */
   manualItems: ManualTimelineItem[];
+  /** Global backlog items (own table, independent of any report) — shown as
+   *  their own neutral/gray band, always a point marker at estimatedDueDate
+   *  (falling back to createdAt when no prazo was set), never a bar: unlike
+   *  Project/Atividade, a backlog item never has a date RANGE of its own. */
+  backlogItems: BacklogItem[];
   /** Real "today" Monday (ISO), independent of any report selected in
    *  History (Melhoria 2.2) — the Roadmap's own time anchor, used for the
    *  "hoje" line and to decide which still-open extras count as current. */
@@ -68,6 +73,11 @@ interface Props {
  *  used elsewhere for ad-hoc (non-governed) items. */
 const MANUAL_GROUP_COLOR = { tint: '#faf5ff', text: '#7e22ce', bar: '#a855f7' };
 
+/** Not a real ObjetivoId either — a neutral gray token for the "Backlog"
+ *  group, deliberately dull/desaturated so it reads as "not yet on the
+ *  governed roadmap" next to the vivid Objetivo palette. */
+const BACKLOG_GROUP_COLOR = { tint: '#f8fafc', text: '#475569', bar: '#94a3b8' };
+
 const HOVER_SHOW_DELAY = 250;
 const HOVER_HIDE_DELAY = 150;
 
@@ -85,6 +95,7 @@ export default function RoadmapTimeline({
   objetivos,
   atividades,
   manualItems,
+  backlogItems,
   currentWeekStart,
   readOnly,
   onEditAtividade,
@@ -103,6 +114,8 @@ export default function RoadmapTimeline({
   const [collapsed, setCollapsed] = useState<Set<ObjetivoId>>(new Set());
   const [manualCollapsed, setManualCollapsed] = useState(false);
   const [showManualProjects, setShowManualProjects] = useState(true);
+  const [backlogCollapsed, setBacklogCollapsed] = useState(false);
+  const [showBacklogItems, setShowBacklogItems] = useState(true);
   const [categoriaFilter, setCategoriaFilter] = useState<Set<ObjetivoId>>(new Set());
   const [statusFilter, setStatusFilter] = useState<Set<TimelineVisualStatus>>(new Set());
   const [responsavelFilter, setResponsavelFilter] = useState<Set<string>>(new Set());
@@ -405,7 +418,21 @@ export default function RoadmapTimeline({
         r.range !== null,
     );
   const manualRows = showManualProjects ? manualEligibleRows : [];
-  const hasAnyVisibleGroup = groups.length > 0 || manualRows.length > 0;
+
+  // Backlog band: always a single point marker (estimatedDueDate, falling
+  // back to the item's own createdAt when no prazo was set yet) — never a
+  // range bar, since a backlog item has only one date field of its own.
+  const backlogEligibleRows = backlogItems
+    .map((item) => {
+      const pointDate = item.estimatedDueDate ?? item.createdAt.slice(0, 10);
+      const range = periodColumnRange(pointDate, pointDate, periods);
+      return { item, pointDate, range };
+    })
+    .filter(
+      (r): r is { item: BacklogItem; pointDate: string; range: { startIdx: number; span: number } } => r.range !== null,
+    );
+  const backlogRows = showBacklogItems ? backlogEligibleRows : [];
+  const hasAnyVisibleGroup = groups.length > 0 || manualRows.length > 0 || backlogRows.length > 0;
 
   // Zebra striping index — a plain counter (not state) incremented in
   // render order as rows are mapped below, so alternating rows read
@@ -464,7 +491,7 @@ export default function RoadmapTimeline({
         </div>
       </div>
       {eligibleStatuses.length > 0 && <TimelineStatCards statuses={eligibleStatuses} />}
-      {eligibleRows.length === 0 && manualEligibleRows.length === 0 ? (
+      {eligibleRows.length === 0 && manualEligibleRows.length === 0 && backlogEligibleRows.length === 0 ? (
         <p className="text-xs text-slate-400 italic">
           Nenhuma atividade com início e fim planejados definidos ainda — defina o "Prazo" de uma
           atividade no Roadmap acima (modo de edição de um Objetivo) para ela aparecer aqui.
@@ -562,6 +589,34 @@ export default function RoadmapTimeline({
                     style={{ backgroundColor: showManualProjects ? '#ffffff' : MANUAL_GROUP_COLOR.bar }}
                   />
                   Atividades da Semana
+                </button>
+              </div>
+            )}
+            {backlogEligibleRows.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowBacklogItems((v) => !v)}
+                  aria-pressed={showBacklogItems}
+                  title="Itens de backlog cadastrados no Editor — ainda não fazem parte do roadmap governado"
+                  className={`flex items-center gap-1 rounded-full px-2 py-0.5 border transition-colors cursor-pointer ${
+                    showBacklogItems ? 'text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                  }`}
+                  style={
+                    showBacklogItems
+                      ? { borderColor: BACKLOG_GROUP_COLOR.bar, backgroundColor: BACKLOG_GROUP_COLOR.bar }
+                      : undefined
+                  }
+                >
+                  <span
+                    aria-hidden="true"
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{
+                      backgroundColor: showBacklogItems ? '#ffffff' : 'transparent',
+                      border: `1.5px solid ${showBacklogItems ? '#ffffff' : BACKLOG_GROUP_COLOR.bar}`,
+                    }}
+                  />
+                  Backlog
                 </button>
               </div>
             )}
@@ -961,6 +1016,96 @@ export default function RoadmapTimeline({
                               style={{ backgroundColor: meta.color }}
                             />
                           )}
+                        </div>
+                        {after > 0 && (
+                          <div
+                            className={`border-b border-l border-slate-100 ${zebra ? 'bg-slate-50/60' : ''}`}
+                            style={{ gridColumn: `span ${after}` }}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+            {/* Backlog band: items not yet part of the governed roadmap —
+               visually distinct (neutral gray, "BACKLOG" badge) from both the
+               Objetivo groups above and the purple "Atividades da Semana"
+               group. Always a single point marker at estimatedDueDate (or
+               createdAt, when no prazo was set), never a range bar — a
+               backlog item has only one date field of its own, so a start/
+               end range would be fabricated data. */}
+            {backlogRows.length > 0 && (
+              <div className="contents">
+                <button
+                  type="button"
+                  onClick={() => setBacklogCollapsed((v) => !v)}
+                  aria-expanded={!backlogCollapsed}
+                  className="w-full flex items-center justify-between gap-2 px-2 py-1 font-semibold border-b text-left cursor-pointer hover:brightness-95 transition-[filter]"
+                  style={{
+                    backgroundColor: BACKLOG_GROUP_COLOR.tint,
+                    color: BACKLOG_GROUP_COLOR.text,
+                    borderColor: BACKLOG_GROUP_COLOR.bar,
+                    gridColumn: `span ${periods.length + 1}`,
+                  }}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span aria-hidden="true">{backlogCollapsed ? '▸' : '▾'}</span>
+                    Backlog
+                    <span className="text-[10px] font-normal opacity-70 hidden sm:inline">(ainda não planejado)</span>
+                  </span>
+                </button>
+                {!backlogCollapsed &&
+                  backlogRows.map(({ item, pointDate, range }) => {
+                    rowIndex++;
+                    const zebra = rowIndex % 2 === 1;
+                    const before = range.startIdx;
+                    const after = periods.length - range.startIdx - range.span;
+                    const priorityMeta = BACKLOG_PRIORITY_META[item.priority];
+                    const statusMeta = BACKLOG_STATUS_META[item.status];
+                    const objetivo = item.objetivoId ? objetivos.find((o) => o.id === item.objetivoId) : null;
+                    const itemName = item.name || 'Item de backlog sem nome';
+                    const dateLabel = item.estimatedDueDate ? `prazo estimado: ${pointDate}` : `sem prazo — criado em ${pointDate}`;
+                    return (
+                      <div key={item.id} className="contents">
+                        <div
+                          className={`sticky left-0 z-[15] shadow-[3px_0_6px_-2px_rgba(0,0,0,0.12)] border-b border-slate-100 px-2 py-2.5 flex items-center gap-1.5 min-w-0 text-slate-600 ${
+                            zebra ? 'bg-slate-50' : 'bg-white'
+                          }`}
+                          title={`${itemName} — ${priorityMeta.label} / ${statusMeta.label} (${dateLabel})`}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{ backgroundColor: objetivo ? OBJETIVO_COLOR[objetivo.id].bar : BACKLOG_GROUP_COLOR.bar }}
+                          />
+                          <span className="flex-1 min-w-0 truncate">{itemName}</span>
+                          <span className="text-[8px] font-bold uppercase tracking-wide bg-slate-200 text-slate-600 rounded px-1 py-0.5 shrink-0">
+                            Backlog
+                          </span>
+                          <span
+                            className="text-[9px] font-semibold rounded px-1.5 py-0.5 shrink-0"
+                            style={{ backgroundColor: `${statusMeta.color}1a`, color: statusMeta.color }}
+                          >
+                            {statusMeta.label}
+                          </span>
+                        </div>
+                        {before > 0 && (
+                          <div
+                            className={`border-b border-l border-slate-100 ${zebra ? 'bg-slate-50/60' : ''}`}
+                            style={{ gridColumn: `span ${before}` }}
+                          />
+                        )}
+                        <div
+                          className={`border-b border-l border-slate-100 relative py-0.5 ${zebra ? 'bg-slate-50/60' : ''}`}
+                          style={{ gridColumn: `span ${range.span}` }}
+                        >
+                          <div
+                            aria-hidden="true"
+                            title={`${itemName} — ${priorityMeta.label} / ${statusMeta.label} (${dateLabel})`}
+                            className="absolute top-1/2 left-1/2 w-2.5 h-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-white"
+                            style={{ backgroundColor: priorityMeta.color }}
+                          />
                         </div>
                         {after > 0 && (
                           <div

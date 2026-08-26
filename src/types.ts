@@ -182,6 +182,45 @@ export interface AtividadePatch {
   reason?: string;
 }
 
+// --- Backlog: global, persistent items (not tied to any weekly report) ---
+export type BacklogPriority = 'alta' | 'media' | 'baixa';
+export type BacklogStatus = 'nao_iniciado' | 'em_andamento' | 'concluido';
+
+export interface BacklogItem {
+  id: string;
+  name: string;
+  /** null = "Sem categoria" — a backlog item doesn't have to relate to a
+   *  formal Objetivo yet (that's the point of a less-structured backlog). */
+  objetivoId: ObjetivoId | null;
+  priority: BacklogPriority;
+  status: BacklogStatus;
+  /** ISO date, optional — most backlog items have no defined deadline. */
+  estimatedDueDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Partial update sent to PATCH /api/backlog/:id. */
+export interface BacklogItemPatch {
+  name?: string;
+  objetivoId?: ObjetivoId | null;
+  priority?: BacklogPriority;
+  status?: BacklogStatus;
+  estimatedDueDate?: string | null;
+}
+
+export const BACKLOG_PRIORITY_META: Record<BacklogPriority, { label: string; color: string }> = {
+  alta: { label: 'Alta', color: '#dc2626' },
+  media: { label: 'Média', color: '#d97706' },
+  baixa: { label: 'Baixa', color: '#64748b' },
+};
+
+export const BACKLOG_STATUS_META: Record<BacklogStatus, { label: string; color: string }> = {
+  nao_iniciado: { label: 'Não iniciado', color: '#64748b' },
+  em_andamento: { label: 'Em andamento', color: '#1d4ed8' },
+  concluido: { label: 'Concluído', color: '#15803d' },
+};
+
 export const ACTIVITY_STATUS_META: Record<ActivityStatus, { label: string }> = {
   planned: { label: 'Planejada' },
   in_progress: { label: 'Em andamento' },

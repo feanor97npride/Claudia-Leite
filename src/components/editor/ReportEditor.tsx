@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import type { Atividade, AtividadePatch, Objetivo, ObjetivoId, Report } from '../../types';
+import type { Atividade, AtividadePatch, BacklogItem, BacklogItemPatch, Objetivo, ObjetivoId, Report } from '../../types';
 import { blankProject } from '../../lib/factory';
 import { formatPeriodLabel } from '../../utils/date';
 import ProjectCard from './ProjectCard';
+import BacklogItemRow from './BacklogItemRow';
 import IndicatorsEditor from './IndicatorsEditor';
 import RoadmapEditor, { type FocusAtividade } from './RoadmapEditor';
 import GovernanceIndicators from './GovernanceIndicators';
@@ -17,6 +18,13 @@ interface Props {
   onUpdateAtividade: (id: string, patch: AtividadePatch) => Promise<void>;
   onAddExtraAtividade: (objetivoId: ObjetivoId, name: string) => Promise<Atividade>;
   onRemoveExtraAtividade: (id: string) => Promise<void>;
+  /** Backlog — global, persistent items, independent of this (or any)
+   *  report; same reason RoadmapEditor's atividades/objetivos aren't
+   *  embedded in the report either. */
+  backlogItems: BacklogItem[];
+  onAddBacklogItem: () => Promise<BacklogItem>;
+  onUpdateBacklogItem: (id: string, patch: BacklogItemPatch) => Promise<void>;
+  onRemoveBacklogItem: (id: string) => Promise<void>;
   focusAtividade?: FocusAtividade | null;
   onFocusHandled?: () => void;
 }
@@ -31,11 +39,17 @@ export default function ReportEditor({
   onUpdateAtividade,
   onAddExtraAtividade,
   onRemoveExtraAtividade,
+  backlogItems,
+  onAddBacklogItem,
+  onUpdateBacklogItem,
+  onRemoveBacklogItem,
   focusAtividade,
   onFocusHandled,
 }: Props) {
   const [projectsSectionOpen, setProjectsSectionOpen] = useState(true);
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
+  const [backlogSectionOpen, setBacklogSectionOpen] = useState(true);
+  const [expandedBacklogId, setExpandedBacklogId] = useState<string | null>(null);
 
   function set<K extends keyof Report>(key: K, value: Report[K]) {
     onChange({ ...report, [key]: value });
@@ -196,6 +210,73 @@ export default function ReportEditor({
                   canMoveDown={i < report.projects.length - 1}
                 />
               ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white">
+        <button
+          type="button"
+          onClick={() => setBacklogSectionOpen((v) => !v)}
+          aria-expanded={backlogSectionOpen}
+          className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left cursor-pointer"
+        >
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span
+              aria-hidden="true"
+              className={`text-slate-400 text-[10px] shrink-0 transition-transform duration-200 ${backlogSectionOpen ? 'rotate-90' : ''}`}
+            >
+              ▸
+            </span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Backlog</span>
+            <span className="text-xs text-slate-400 hidden sm:inline">
+              (itens ainda não priorizados no roadmap formal)
+            </span>
+            <span className="text-xs font-medium bg-slate-100 text-slate-500 rounded-full px-2 py-0.5">
+              {backlogItems.length}
+            </span>
+          </div>
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation();
+              void onAddBacklogItem().then((created) => setExpandedBacklogId(created.id));
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                void onAddBacklogItem().then((created) => setExpandedBacklogId(created.id));
+              }
+            }}
+            className="text-xs font-medium bg-slate-900 text-white rounded-lg px-3 py-1.5 hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
+          >
+            + Adicionar item ao backlog
+          </span>
+        </button>
+
+        <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${backlogSectionOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+          <div className="overflow-hidden">
+            <div className="px-4 pb-4 space-y-2">
+              {backlogItems.length === 0 ? (
+                <p className="text-xs text-slate-400 italic py-2">
+                  Nenhum item no backlog ainda — use "+ Adicionar item ao backlog" para começar.
+                </p>
+              ) : (
+                backlogItems.map((item) => (
+                  <BacklogItemRow
+                    key={item.id}
+                    item={item}
+                    objetivos={objetivos}
+                    expanded={item.id === expandedBacklogId}
+                    onToggleExpand={() => setExpandedBacklogId((cur) => (cur === item.id ? null : item.id))}
+                    onChange={(id, patch) => void onUpdateBacklogItem(id, patch)}
+                    onRemove={() => void onRemoveBacklogItem(item.id)}
+                  />
+                ))
+              )}
             </div>
           </div>
         </div>

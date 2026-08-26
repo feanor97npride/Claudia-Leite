@@ -3,6 +3,8 @@ import type {
   AtividadePatch,
   AuditEntry,
   AuthedUser,
+  BacklogItem,
+  BacklogItemPatch,
   Objetivo,
   ObjetivoId,
   ObjetivoVersion,
@@ -93,6 +95,32 @@ export async function createExtraAtividadeApi(
 
 export function deleteExtraAtividadeApi(id: string): Promise<void> {
   return request(`/api/atividades/${id}`, { method: 'DELETE' });
+}
+
+// --- Backlog (global, persistent — not tied to any weekly report) ---
+export async function fetchBacklogItems(): Promise<BacklogItem[]> {
+  const { items } = await request<{ items: BacklogItem[] }>('/api/backlog');
+  return items;
+}
+
+export async function createBacklogItemApi(name: string): Promise<BacklogItem> {
+  const { item } = await request<{ item: BacklogItem }>('/api/backlog', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+  return item;
+}
+
+export async function updateBacklogItemApi(id: string, patch: BacklogItemPatch): Promise<BacklogItem> {
+  const { item } = await request<{ item: BacklogItem }>(`/api/backlog/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+  return item;
+}
+
+export function deleteBacklogItemApi(id: string): Promise<void> {
+  return request(`/api/backlog/${id}`, { method: 'DELETE' });
 }
 
 export async function fetchAuditLog(
