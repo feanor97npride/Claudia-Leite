@@ -296,7 +296,13 @@ export default function App() {
       {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
 
       <main className="max-w-[1800px] mx-auto px-4 sm:px-6 py-6 grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-6 items-start">
-        <div>
+        {/* min-w-0 overrides the grid track's default automatic minimum size
+           (which otherwise grows to fit this column's widest descendant's
+           intrinsic content — e.g. the Roadmap Timeline's "Dia" zoom grid,
+           thousands of px wide) so the column stays at its 1fr share and the
+           Timeline's own overflow-x-auto actually contains the scroll,
+           instead of the whole page growing wider than the viewport. */}
+        <div className="min-w-0">
           <div className="flex items-center justify-between mb-4 no-print flex-wrap gap-2">
             <div className="flex rounded-lg border border-slate-300 overflow-hidden bg-white">
               <button

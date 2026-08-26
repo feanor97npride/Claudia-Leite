@@ -371,11 +371,11 @@ export default function RoadmapTimeline({
       ref={containerRef}
       className={
         isFullscreen
-          ? 'bg-white p-6 h-full overflow-auto'
-          : 'rounded-xl border border-slate-200 bg-white p-4'
+          ? 'bg-white p-6 h-full overflow-hidden flex flex-col'
+          : 'rounded-xl border border-slate-200 bg-white p-4 flex flex-col max-h-[75vh]'
       }
     >
-      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap shrink-0">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Roadmap — Visão Timeline</h2>
         <div className="flex items-center gap-2 shrink-0">
           <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5" role="group" aria-label="Zoom temporal">
@@ -410,8 +410,8 @@ export default function RoadmapTimeline({
           atividade no Roadmap acima (modo de edição de um Objetivo) para ela aparecer aqui.
         </p>
       ) : (
-        <>
-          <div className="flex flex-wrap items-start gap-x-4 gap-y-2 mb-3 text-[11px]">
+        <div className="flex flex-col flex-1 min-h-0">
+          <div className="flex flex-wrap items-start gap-x-4 gap-y-2 mb-3 text-[11px] shrink-0">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-slate-400 font-medium shrink-0">Categoria:</span>
               {objetivos.map((o) => {
@@ -522,10 +522,18 @@ export default function RoadmapTimeline({
           {!hasAnyVisibleGroup ? (
             <p className="text-xs text-slate-400 italic">Nenhuma atividade corresponde aos filtros selecionados.</p>
           ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto flex-1 min-h-0 flex flex-col">
+          {/* Header (corner + month row + period ruler) is its own grid,
+             deliberately NOT part of the vertically-scrolling body below —
+             it shares the body's exact column template so columns line up,
+             but staying outside the scroll container is simpler and more
+             robust than juggling multi-row sticky offsets (a 2-row header
+             only exists at 'day' zoom, which would need two different
+             `position: sticky; top` values). Both grids sit inside this one
+             `overflow-x-auto` ancestor, so they scroll horizontally in sync
+             as a single unit. */}
           <div
-            ref={gridRef}
-            className="grid text-[11px] min-w-[720px] relative"
+            className="grid text-[11px] min-w-[720px] shrink-0"
             style={{ gridTemplateColumns: `176px repeat(${periods.length}, minmax(${ZOOM_LEVEL_META[zoom].minColWidth}px, 1fr))` }}
           >
             <div
@@ -564,6 +572,13 @@ export default function RoadmapTimeline({
                 {p.label}
               </div>
             ))}
+          </div>
+          <div className="overflow-y-auto flex-1 min-h-0">
+          <div
+            ref={gridRef}
+            className="grid text-[11px] min-w-[720px] relative"
+            style={{ gridTemplateColumns: `176px repeat(${periods.length}, minmax(${ZOOM_LEVEL_META[zoom].minColWidth}px, 1fr))` }}
+          >
             {todayLeft !== null && (
               <div
                 aria-hidden="true"
@@ -575,8 +590,8 @@ export default function RoadmapTimeline({
               </div>
             )}
             {/* Melhoria 1: a stronger divider at each month boundary,
-               spanning the full grid height (drawn over the body, under
-               the "hoje" line and the sticky name column). */}
+               spanning the full height of the (scrollable) body, drawn
+               under the "hoje" line and the sticky name column. */}
             {monthDividerLefts.map((left, i) => (
               <div
                 key={`month-divider-${i}`}
@@ -850,9 +865,10 @@ export default function RoadmapTimeline({
               </div>
             )}
           </div>
+          </div>
         </div>
           )}
-        </>
+        </div>
       )}
       {preview && !selected && (
         <HoverPreviewCard

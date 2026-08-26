@@ -573,6 +573,46 @@ auditoria que o próprio usuário não possa editar.
     aparece; barra com prazo atravessando a virada de mês (25/08 a 05/09)
     renderiza corretamente ao lado do divisor de mês (Melhoria 1); toggle
     mostrar/ocultar "Atividades da Semana" funciona nos dois sentidos.
+- **Correção de layout — Timeline não cabia na tela sem "tela cheia"**: como
+  "Atividades da Semana" agora acumula todos os relatórios (item anterior),
+  o número de linhas cresce a cada semana nova — o grid, sem altura própria,
+  simplesmente empurrava a página inteira para baixo, e em "Dia" (centenas
+  de colunas estreitas) empurrava a página para os lados também, obrigando
+  a usar "Tela cheia" (que só funcionava por acidente: a Fullscreen API do
+  navegador dá ao elemento o tamanho real da tela, mascarando o problema).
+  Duas correções em `RoadmapTimeline.tsx`:
+  - **Cabeçalho separado do corpo rolável**: em vez de cabeçalho (canto
+    "Atividade" + linha de meses + régua de tempo) e corpo (grupos/linhas)
+    no MESMO grid, agora são dois grids irmãos com o mesmo
+    `gridTemplateColumns` — o cabeçalho fica fixo, só o corpo tem
+    `overflow-y-auto` com altura limitada. Preferido a `position: sticky`
+    porque a visão "Dia" tem cabeçalho de DUAS linhas (mês + dia) — dois
+    `sticky top` diferentes exigiriam medir a altura da 1ª linha em pixels;
+    com dois grids, o problema não existe. A linha "hoje" e o divisor de
+    mês passam a ficar só na altura do corpo (não atravessam mais mais o
+    cabeçalho) — role visual menor, mas sem trade-off real, já que o
+    cabeçalho fixo não precisa da linha para ainda mostrar a coluna certa.
+  - **Seção com altura máxima** (`max-h-[75vh]` fora de tela cheia, `h-full`
+    dentro): o `<section>` agora é `flex flex-col`, cabeçalho/filtros com
+    `shrink-0`, e só a área do grid usa o espaço restante (`flex-1
+    min-h-0`) — crescer o número de linhas não cresce mais o componente,
+    só aumenta o quanto o corpo rola internamente.
+  - **Causa raiz real do overflow horizontal**: não estava no
+    `RoadmapTimeline` em si — a `<div>` que envolve o conteúdo das abas em
+    `App.tsx` é a 1ª coluna de um CSS Grid (`grid-cols-[1fr_340px]`) sem
+    `min-w-0`; por padrão, uma célula de grid não encolhe abaixo do
+    tamanho mínimo intrínseco do que há dentro dela, então a grade de
+    milhares de pixels da visão "Dia" "vazava" e alargava a página inteira
+    mesmo com `overflow-x-auto` no componente. Corrigido com `min-w-0`
+    nessa `<div>` (`App.tsx`) — um problema clássico de Grid/Flexbox, não
+    específico deste componente.
+  - "Tela cheia" continua existindo como opção de conforto, não mais como
+    correção de um bug de layout.
+  - Testado via Playwright nas 4 granularidades (Dia/Semana/Mês/Trimestre),
+    com dados simulando várias semanas acumuladas de "Atividades da
+    Semana": nenhuma causa overflow de página (nem vertical nem
+    horizontal), o corpo rola internamente com o cabeçalho parado no
+    lugar, e a página em si não rola por causa do componente.
 **Ainda não feito** (próximos passos de UX, menor prioridade): revisão
 formal de contraste de cor (WCAG) e responsividade em telas mobile/tablet,
 e uma estrutura de roles mais extensível (hoje um enum fixo `admin`/`viewer`,
