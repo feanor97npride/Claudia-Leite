@@ -700,6 +700,19 @@ auditoria que o próprio usuário não possa editar.
     status/responsável/descrição, adicionar e salvar subtarefa (com o %
     persistindo e o progresso da barra atualizando de verdade), e ver o
     registro real no Histórico — tudo de ponta a ponta contra o banco.
+- **⚠️ TEMPORÁRIO — `/api/admin-migrate`**: rota admin-only (`requireAuth` +
+  `requireRole(user, 'admin')`) que aplica as migrations pendentes contra o
+  `DATABASE_URL` que a própria Vercel já tem configurado. Existe só porque a
+  Vercel marca `DATABASE_URL` como "sensitive" e não deixa mais ver/copiar o
+  valor pela dashboard — sem isso, não dava para rodar `npm run db:migrate`
+  localmente apontando para produção depois da migration
+  `005_atividade_subtasks.sql`. A lógica de fato foi extraída para
+  `server/migrations.ts` (`applyPendingMigrations`, reaproveitada pelo script
+  `server/migrate.ts` de sempre — sem `pool.end()`/`process.exit`, já que
+  aqui reaproveita o pool compartilhado do app). **Remover
+  `api/admin-migrate.ts` e a entrada correspondente em `vite.config.ts`
+  assim que a migration 005 estiver confirmada em produção** — não é para
+  ficar como rota permanente.
 **Ainda não feito** (próximos passos de UX, menor prioridade): revisão
 formal de contraste de cor (WCAG) e responsividade em telas mobile/tablet,
 e uma estrutura de roles mais extensível (hoje um enum fixo `admin`/`viewer`,
