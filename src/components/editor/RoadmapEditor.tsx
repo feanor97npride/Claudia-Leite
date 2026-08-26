@@ -749,81 +749,63 @@ function ObjetivoCard({
   return (
     <div
       ref={cardRef}
-      className="rounded-xl border border-slate-200 bg-white p-4 space-y-3"
+      className="rounded-2xl border border-slate-200/70 bg-white shadow-sm p-4 space-y-1"
       data-testid={`objetivo-card-${objetivo.id}`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 space-y-1">
-          {editing ? (
-            <>
-              <input
-                value={draftEntregaLabel}
-                onChange={(e) => setDraftEntregaLabel(e.target.value)}
-                placeholder="Rótulo da entrega (ex: Entrega 1)"
-                aria-label="Rótulo da entrega"
-                className={`w-full font-semibold uppercase tracking-wide ${INPUT_CLASS}`}
-              />
-              <input
-                value={draftName}
-                onChange={(e) => setDraftName(e.target.value)}
-                placeholder="Nome do objetivo"
-                aria-label="Nome do objetivo"
-                className={`w-full text-sm font-bold ${INPUT_CLASS}`}
-              />
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="date"
-                  value={draftPeriodStart}
-                  onChange={(e) => setDraftPeriodStart(e.target.value)}
-                  aria-label="Início do período do objetivo"
-                  className={INPUT_CLASS}
-                />
-                <span className="text-xs text-slate-400">até</span>
-                <input
-                  type="date"
-                  value={draftPeriodEnd}
-                  onChange={(e) => setDraftPeriodEnd(e.target.value)}
-                  aria-label="Fim do período do objetivo"
-                  className={INPUT_CLASS}
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                {objetivo.entregaLabel}
-              </p>
-              <p className="text-sm font-bold text-slate-900">{objetivo.name}</p>
-              <p className="text-xs text-slate-400">{objetivo.periodLabel}</p>
-            </>
-          )}
-        </div>
-        <div className="flex flex-col items-end gap-1 shrink-0">
-          <span className="text-xs font-medium text-slate-500 bg-slate-100 rounded-full px-2.5 py-1">
-            Semana {week} de {objetivo.totalWeeks}
-          </span>
-          <div className="flex gap-1">
-            {!editing && (
-              <button
-                type="button"
-                onClick={() => setHistoryOpen(true)}
-                className="text-[11px] font-medium text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded px-2 py-1 transition-colors"
-              >
-                🕘 Histórico
-              </button>
-            )}
-            {!editing && !readOnly && (
-              <button
-                type="button"
-                onClick={startEditing}
-                className="text-[11px] font-medium text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded px-2 py-1 transition-colors"
-              >
-                ✎ Editar entrega
-              </button>
-            )}
+      {editing ? (
+        <>
+          <div className="flex items-start justify-between gap-2">
+            <input
+              value={draftEntregaLabel}
+              onChange={(e) => setDraftEntregaLabel(e.target.value)}
+              placeholder="Rótulo da entrega (ex: Entrega 1)"
+              aria-label="Rótulo da entrega"
+              className={`flex-1 font-semibold uppercase tracking-wide ${INPUT_CLASS}`}
+            />
+            <span className="text-[11px] font-medium text-slate-400 bg-slate-100 rounded-full px-2.5 py-1 shrink-0 whitespace-nowrap">
+              Semana {week} de {objetivo.totalWeeks}
+            </span>
           </div>
-        </div>
-      </div>
+          <input
+            value={draftName}
+            onChange={(e) => setDraftName(e.target.value)}
+            placeholder="Nome do objetivo"
+            aria-label="Nome do objetivo"
+            className={`w-full text-sm font-bold ${INPUT_CLASS}`}
+          />
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              value={draftPeriodStart}
+              onChange={(e) => setDraftPeriodStart(e.target.value)}
+              aria-label="Início do período do objetivo"
+              className={INPUT_CLASS}
+            />
+            <span className="text-xs text-slate-400">até</span>
+            <input
+              type="date"
+              value={draftPeriodEnd}
+              onChange={(e) => setDraftPeriodEnd(e.target.value)}
+              aria-label="Fim do período do objetivo"
+              className={INPUT_CLASS}
+            />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              {objetivo.entregaLabel}
+            </span>
+            <span className="text-[11px] font-medium text-slate-400 bg-slate-100 rounded-full px-2.5 py-0.5 shrink-0 whitespace-nowrap">
+              Semana {week} de {objetivo.totalWeeks}
+            </span>
+          </div>
+          <p className="text-base font-semibold text-slate-800">{objetivo.name}</p>
+          <p className="text-xs text-slate-400 pb-2">{objetivo.periodLabel}</p>
+        </>
+      )}
+
       {historyOpen && (
         <AuditHistoryModal
           entityType="objetivo"
@@ -833,29 +815,50 @@ function ObjetivoCard({
         />
       )}
 
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1">
-          <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
-            <div
-              className="h-full rounded-full transition-[width] duration-300 ease-out"
-              style={{ width: `${progress}%`, backgroundColor: progressBarColor }}
-            />
-          </div>
-          <p className="text-xs font-semibold text-slate-500 mt-1">{progress}% concluído</p>
+      <div>
+        <div className="flex items-center justify-between gap-3 mb-1">
+          <span className="text-xs font-medium text-slate-500">{progress}% concluído</span>
+          <span className="text-xs text-slate-400 shrink-0">
+            ADIANTAMENTO MÉDIO{' '}
+            <span
+              className={`font-medium ${
+                aheadBehind === null
+                  ? 'text-slate-400 italic'
+                  : TONE_META[aheadBehind > 0 ? 'good' : aheadBehind < 0 ? 'bad' : 'neutral'].text
+              }`}
+            >
+              {aheadBehind === null ? 'sem dados' : `${aheadBehind > 0 ? '+' : ''}${aheadBehind}%`}
+            </span>
+          </span>
         </div>
-        <div className="text-right shrink-0">
-          <p className="text-[10px] uppercase tracking-wide text-slate-400">Adiantamento médio</p>
-          <p
-            className={`text-xs font-semibold ${
-              aheadBehind === null
-                ? 'text-slate-400 italic'
-                : TONE_META[aheadBehind > 0 ? 'good' : aheadBehind < 0 ? 'bad' : 'neutral'].text
-            }`}
-          >
-            {aheadBehind === null ? 'sem dados' : `${aheadBehind > 0 ? '+' : ''}${aheadBehind}%`}
-          </p>
+        <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
+          <div
+            className="h-full rounded-full transition-[width] duration-300 ease-out"
+            style={{ width: `${progress}%`, backgroundColor: progressBarColor }}
+          />
         </div>
       </div>
+
+      {!editing && (
+        <div className="flex items-center gap-3 text-xs pt-2">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-700 transition-colors"
+          >
+            🕘 Histórico
+          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={startEditing}
+              className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-700 transition-colors"
+            >
+              ✎ Editar entrega
+            </button>
+          )}
+        </div>
+      )}
 
       {items.length === 0 ? (
         <p className="text-xs text-slate-400 italic">
@@ -879,12 +882,12 @@ function ObjetivoCard({
               })
             }
             aria-expanded={showActivities}
-            className="w-full flex items-center justify-between gap-2 text-left cursor-pointer"
+            className="w-full flex items-center justify-between gap-2 text-left cursor-pointer border-t border-slate-100 pt-2"
           >
             <p className="text-[11px] font-medium text-slate-400">
               {items.length} {items.length === 1 ? 'atividade' : 'atividades'}
             </p>
-            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-slate-900 transition-colors">
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-600 hover:text-indigo-700 transition-colors">
               {showActivities ? 'Recolher' : 'Ver atividades'}
               <span
                 aria-hidden="true"

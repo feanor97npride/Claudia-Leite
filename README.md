@@ -465,6 +465,20 @@ auditoria que o próprio usuário não possa editar.
   - Reduz bastante a extensão de rolagem da tela por padrão (efeito
     colateral direto dos dois pontos acima), sem remover nenhum campo
     ou funcionalidade — só reorganiza o que fica visível de cara.
+- **Visual dos cards de Entrega ajustado** para casar com o mockup de
+  referência (`RoadmapEditor.tsx`, `ObjetivoCard`): cartão
+  `rounded-2xl border-slate-200/70 shadow-sm` (era `rounded-xl
+  border-slate-200`, sem sombra); rótulo da entrega e o badge "Semana X
+  de Y" na mesma linha (antes o badge + Histórico/Editar entrega ficavam
+  empilhados numa coluna à direita do título); "% concluído" e
+  "ADIANTAMENTO MÉDIO" na mesma linha, com a barra de progresso abaixo
+  ocupando a largura toda (antes eram duas colunas lado a lado); 🕘
+  Histórico/✎ Editar entrega viraram uma linha própria com separador
+  (`border-t`) logo abaixo da barra; "Ver atividades"/"Recolher" ganhou
+  cor índigo (antes cinza) e o mesmo separador. A cor da barra de
+  progresso continua fixa em verde (`STATUS_META.on_track`) — o mockup
+  de referência mostrava uma variação por %, mas isso já tinha sido
+  descartado a pedido do usuário logo antes.
 
 **Ainda não feito** (próximos passos de UX, menor prioridade): revisão
 formal de contraste de cor (WCAG) e responsividade em telas mobile/tablet,
