@@ -5,7 +5,7 @@ import {
   atividadesForObjetivo,
   computeBarFillPercent,
   computeObjetivoProgress,
-  isVisibleThisWeek,
+  isVisibleInTimeline,
   timelineVisualStatus,
 } from '../../lib/roadmap';
 import type { ZoomLevel } from '../../lib/timelinePeriods';
@@ -23,18 +23,26 @@ import HoverPreviewCard from './HoverPreviewCard';
 interface Props {
   objetivos: Objetivo[];
   atividades: Atividade[];
-  /** The current report's own free-narrative "Projetos / Iniciativas da
+  /** The most recent report's free-narrative "Projetos / Iniciativas da
    *  Semana" — not governed roadmap data, shown as its own optional group
-   *  (Melhoria 2) since they have no plannedStart/plannedEnd of their own,
-   *  only the report's single weekStart. */
+   *  ("Atividades da Semana", Melhoria 2). Most of them have no prazo of
+   *  their own (only the report's single weekStart, via `projectsWeekStart`
+   *  below); an item that does set plannedStart/plannedEnd gets a normal
+   *  range bar instead. */
   projects: Project[];
+  /** ISO Monday of the week `projects` belongs to — used only as the
+   *  point-marker fallback date for a project with no prazo of its own. */
+  projectsWeekStart: string;
+  /** Real "today" Monday (ISO), independent of any report selected in
+   *  History (Melhoria 2.2) — the Roadmap's own time anchor, used for the
+   *  "hoje" line and to decide which still-open extras count as current. */
   currentWeekStart: string;
   readOnly: boolean;
   onEditAtividade: (objetivoId: ObjetivoId, atividadeId: string) => void;
 }
 
 /** Not a real ObjetivoId — a manual color token for the synthetic
- *  "Projetos da Semana" group, purple to match the "Extra" badge already
+ *  "Atividades da Semana" group, purple to match the "Extra" badge already
  *  used elsewhere for ad-hoc (non-governed) items. */
 const MANUAL_GROUP_COLOR = { tint: '#faf5ff', text: '#7e22ce', bar: '#a855f7' };
 
@@ -55,6 +63,7 @@ export default function RoadmapTimeline({
   objetivos,
   atividades,
   projects,
+  projectsWeekStart,
   currentWeekStart,
   readOnly,
   onEditAtividade,
@@ -278,7 +287,7 @@ export default function RoadmapTimeline({
   // "no plannable data yet" apart from "filters hid everything".
   const eligibleRows = objetivos.flatMap((objetivo) =>
     atividadesForObjetivo(objetivo.id, atividades)
-      .filter((a) => isVisibleThisWeek(a, currentWeekStart))
+      .filter((a) => isVisibleInTimeline(a, currentWeekStart))
       .filter((a): a is Atividade & { plannedStart: string; plannedEnd: string } => !!a.plannedStart && !!a.plannedEnd)
       .map((atividade) => ({ atividade, objetivo })),
   );
@@ -321,15 +330,25 @@ export default function RoadmapTimeline({
     .filter((group) => group.rows.length > 0);
 
   // Melhoria 2: the report's free-narrative "Projetos / Iniciativas da
-  // Semana" have no plannedStart/plannedEnd of their own (they're a weekly
-  // snapshot tied to one report, not a persistent governed item with a
-  // date range) — so each one is placed as a single-day point at the
-  // report's own weekStart, not a bar. Falls off the Timeline entirely if
-  // that week is outside the displayed period range (same "no range, no
-  // row" convention already used for atividades).
+  // Semana" (shown here as "Atividades da Semana") usually have no
+  // plannedStart/plannedEnd of their own — those are placed as a single-day
+  // point at the report's own weekStart (projectsWeekStart), not a bar. An
+  // item that DOES set a prazo (Melhoria 2.1) gets a normal range bar
+  // instead, same placement logic as a governed atividade. Falls off the
+  // Timeline entirely if its date(s) land outside the displayed period
+  // range (same "no range, no row" convention already used for atividades).
   const manualEligibleRows = projects
-    .map((project) => ({ project, range: periodColumnRange(currentWeekStart, currentWeekStart, periods) }))
-    .filter((r): r is { project: Project; range: { startIdx: number; span: number } } => r.range !== null);
+    .map((project) => {
+      const hasOwnDates = !!(project.plannedStart && project.plannedEnd);
+      const range = hasOwnDates
+        ? periodColumnRange(project.plannedStart!, project.plannedEnd!, periods)
+        : periodColumnRange(projectsWeekStart, projectsWeekStart, periods);
+      return { project, range, hasOwnDates };
+    })
+    .filter(
+      (r): r is { project: Project; range: { startIdx: number; span: number }; hasOwnDates: boolean } =>
+        r.range !== null,
+    );
   const manualRows = showManualProjects ? manualEligibleRows : [];
   const hasAnyVisibleGroup = groups.length > 0 || manualRows.length > 0;
 
@@ -456,7 +475,7 @@ export default function RoadmapTimeline({
                   type="button"
                   onClick={() => setShowManualProjects((v) => !v)}
                   aria-pressed={showManualProjects}
-                  title="Projetos/Iniciativas da Semana cadastrados no Editor (narrativa livre) — não fazem parte do roadmap governado"
+                  title="Atividades da Semana cadastradas no Editor (narrativa livre) — não fazem parte do roadmap governado"
                   className={`flex items-center gap-1 rounded-full px-2 py-0.5 border transition-colors cursor-pointer ${
                     showManualProjects
                       ? 'text-white'
@@ -473,7 +492,7 @@ export default function RoadmapTimeline({
                     className="w-2 h-2 rotate-45 rounded-[1px] shrink-0"
                     style={{ backgroundColor: showManualProjects ? '#ffffff' : MANUAL_GROUP_COLOR.bar }}
                   />
-                  Projetos da Semana
+                  Atividades da Semana
                 </button>
               </div>
             )}
@@ -713,12 +732,14 @@ export default function RoadmapTimeline({
                 </div>
               );
             })}
-            {/* Melhoria 2: "Projetos / Iniciativas da Semana" from the
-               Editor — free narrative, not governed roadmap data, so no
-               plannedStart/plannedEnd of its own. Placed as a single-day
-               point (diamond marker) at the report's own weekStart rather
-               than a bar, since a date RANGE would be fabricated data;
-               visually distinguished with the purple "Manual" badge/color
+            {/* Melhoria 2: "Atividades da Semana" — the report's
+               free-narrative Projetos/Iniciativas, not governed roadmap
+               data. Most have no plannedStart/plannedEnd of their own, so
+               they're placed as a single-day point (diamond marker) at the
+               report's own weekStart rather than a bar, since a date RANGE
+               would otherwise be fabricated data; an item that DOES set a
+               prazo (Melhoria 2.1) gets a normal range bar instead.
+               Visually distinguished with the purple "Manual" badge/color
                already used elsewhere in the app for ad-hoc items. */}
             {manualRows.length > 0 && (
               <div className="contents">
@@ -736,31 +757,35 @@ export default function RoadmapTimeline({
                 >
                   <span className="flex items-center gap-1.5">
                     <span aria-hidden="true">{manualCollapsed ? '▸' : '▾'}</span>
-                    Projetos da Semana
+                    Atividades da Semana
                     <span className="text-[10px] font-normal opacity-70 hidden sm:inline">(narrativa livre)</span>
                   </span>
                 </button>
                 {!manualCollapsed &&
-                  manualRows.map(({ project, range }) => {
+                  manualRows.map(({ project, range, hasOwnDates }) => {
                     rowIndex++;
                     const zebra = rowIndex % 2 === 1;
                     const before = range.startIdx;
                     const after = periods.length - range.startIdx - range.span;
                     const meta = STATUS_META[project.status];
+                    const projectName = project.name || 'Projeto sem nome';
+                    const dateLabel = hasOwnDates
+                      ? `${project.plannedStart} – ${project.plannedEnd}`
+                      : `sem prazo definido — marcador na semana de ${projectsWeekStart}`;
                     return (
                       <div key={project.id} className="contents">
                         <div
                           className={`sticky left-0 z-[15] shadow-[3px_0_6px_-2px_rgba(0,0,0,0.12)] border-b border-slate-100 px-2 py-2.5 flex items-center gap-1.5 min-w-0 text-slate-600 ${
                             zebra ? 'bg-slate-50' : 'bg-white'
                           }`}
-                          title={`${project.name || 'Projeto sem nome'} — ${meta.label} (semana de ${currentWeekStart})`}
+                          title={`${projectName} — ${meta.label} (${dateLabel})`}
                         >
                           <span
                             aria-hidden="true"
                             className="w-2 h-2 rotate-45 rounded-[1px] shrink-0"
                             style={{ backgroundColor: meta.color }}
                           />
-                          <span className="flex-1 min-w-0 truncate">{project.name || 'Projeto sem nome'}</span>
+                          <span className="flex-1 min-w-0 truncate">{projectName}</span>
                           <span className="text-[8px] font-bold uppercase tracking-wide bg-purple-100 text-purple-700 rounded px-1 py-0.5 shrink-0">
                             Manual
                           </span>
@@ -781,12 +806,28 @@ export default function RoadmapTimeline({
                           className={`border-b border-l border-slate-100 relative py-0.5 ${zebra ? 'bg-slate-50/60' : ''}`}
                           style={{ gridColumn: `span ${range.span}` }}
                         >
-                          <div
-                            aria-hidden="true"
-                            title={`${project.name || 'Projeto sem nome'} — ${meta.label}`}
-                            className="absolute top-1/2 left-1/2 w-2.5 h-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px]"
-                            style={{ backgroundColor: meta.color }}
-                          />
+                          {hasOwnDates ? (
+                            <div
+                              title={`${projectName} — ${meta.label} (${dateLabel})`}
+                              className="absolute inset-y-1 left-0.5 right-0.5 rounded flex items-center gap-1 px-1.5 text-[10px] font-semibold text-white"
+                              style={{ backgroundColor: meta.color }}
+                            >
+                              <span className="flex-1 min-w-0 truncate">{projectName}</span>
+                              <div
+                                aria-hidden="true"
+                                className="absolute left-0 right-0 bottom-0 h-[3px] rounded-b bg-black/15 overflow-hidden"
+                              >
+                                <div className="h-full bg-white/70" style={{ width: `${project.percent}%` }} />
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              aria-hidden="true"
+                              title={`${projectName} — ${meta.label} (${dateLabel})`}
+                              className="absolute top-1/2 left-1/2 w-2.5 h-2.5 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px]"
+                              style={{ backgroundColor: meta.color }}
+                            />
+                          )}
                         </div>
                         {after > 0 && (
                           <div

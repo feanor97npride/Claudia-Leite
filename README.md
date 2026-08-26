@@ -514,6 +514,57 @@ auditoria que o próprio usuário não possa editar.
     marcador pontual (losango) na data da própria semana do relatório
     (`weekStart`), a única data genuinamente associada a um Project via
     seu Report pai.
+- **"Atividades da Semana" + Roadmap independente do relatório selecionado**
+  (Melhoria 2, follow-up ao item anterior — renomeação e um ponto
+  arquitetural importante):
+  - **Renomeação**: o grupo da Timeline passa a se chamar "Atividades da
+    Semana" (era "Projetos da Semana") — só o rótulo exibido nesse grupo
+    específico (cabeçalho, chip de filtro, tooltips) mudou; a seção do
+    Editor onde esses itens são cadastrados continua chamada "Projetos /
+    Iniciativas da semana" (`ReportEditor.tsx`) e os campos continuam
+    "Projeto" ali — são telas diferentes, não a mesma nomenclatura.
+  - **Prazo início/fim opcional em `Project`**: dois campos ISO novos
+    (`plannedStart`/`plannedEnd`, ambos opcionais) editáveis no
+    `ProjectCard` expandido. Quando preenchidos, o item ganha uma barra de
+    verdade no Timeline (mesma lógica de posicionamento de
+    `periodColumnRange` já usada para Atividades, com o preenchimento
+    usando o próprio `percent` do projeto — que já existe e é mais direto
+    que o proxy de "tempo decorrido" usado para Atividades); sem prazo,
+    mantém o marcador pontual (losango) já existente. Como `projects` vive
+    dentro do `data jsonb` de cada relatório (sem schema SQL próprio), os
+    dois campos não exigem migration — só o tipo TS e a API já aceitam
+    qualquer propriedade adicional no objeto.
+  - **Ponto arquitetural — Roadmap como entidade independente do relatório
+    selecionado**: antes, a Timeline recebia `currentWeekStart` e
+    `projects` diretamente do relatório aberto no Editor/Snapshot
+    (`draft`) — trocar de relatório no Histórico ("Visualizar") mudava o
+    que aparecia no Roadmap (atividades extras somem/aparecem, marcador
+    das Atividades da Semana pula de semana). Corrigido em `App.tsx`:
+    a Timeline agora recebe `currentWeekStart={currentWeekStartISO()}`
+    (a segunda-feira da semana real de hoje, sempre, não a do relatório
+    aberto) e `projects`/`projectsWeekStart` vêm do relatório mais recente
+    (`reports[0]`, já ordenado desc por `weekStart` — o mesmo relatório que
+    o Histórico já marca como "ATUAL"), nunca de `draft`. A linha "hoje" já
+    usava `todayISO()` internamente e não precisou mudar; o que dependia do
+    relatório selecionado era só o filtro de visibilidade de extras e a
+    origem dos projetos manuais.
+  - **Atividades extras concluídas viram legado permanente**: a regra
+    antiga (`isVisibleThisWeek`, ainda usada como estava no Editor ao vivo)
+    escondia qualquer atividade extra cuja semana de criação não fosse a
+    semana atual — correto para o Editor (não deixar um TODO de semana
+    passada solto), mas errado para o Roadmap, que deve acumular todo o
+    progresso já entregue. Nova função dedicada só para a Timeline,
+    `isVisibleInTimeline` (`lib/roadmap.ts`): igual à anterior, exceto que
+    uma extra com `status: 'done'` **sempre** aparece, não importa a
+    semana em que foi criada — vira parte do histórico acumulado, exatamente
+    como as atividades planejadas concluídas já se comportavam.
+  - Testado via Playwright: abrir um relatório de semana anterior no
+    Histórico não altera as linhas exibidas no Roadmap nem a posição da
+    linha "hoje"; uma atividade extra concluída há 3 semanas continua
+    visível; o projeto do relatório antigo (não o mais recente) não
+    aparece; barra com prazo atravessando a virada de mês (25/08 a 05/09)
+    renderiza corretamente ao lado do divisor de mês (Melhoria 1); toggle
+    mostrar/ocultar "Atividades da Semana" funciona nos dois sentidos.
 **Ainda não feito** (próximos passos de UX, menor prioridade): revisão
 formal de contraste de cor (WCAG) e responsividade em telas mobile/tablet,
 e uma estrutura de roles mais extensível (hoje um enum fixo `admin`/`viewer`,

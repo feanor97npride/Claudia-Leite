@@ -4,7 +4,7 @@ import { ROLE_META } from './types';
 import { getReports } from './lib/storage';
 import { blankReport, duplicateForNextWeek } from './lib/factory';
 import { buildRoadmapSnapshot } from './lib/roadmap';
-import { todayISO } from './utils/date';
+import { currentWeekStartISO, todayISO } from './utils/date';
 import {
   createExtraAtividadeApi,
   deleteExtraAtividadeApi,
@@ -235,6 +235,11 @@ export default function App() {
   }
 
   const editorDisabled = useMemo(() => view === 'snapshot', [view]);
+  // reports is kept sorted desc by weekStart (see upsertIntoReports/
+  // loadReports) — reports[0] is the same "most recent = ATUAL" report
+  // HistoryPanel already highlights, reused here as the Roadmap's own
+  // reference report (Melhoria 2.2), independent of `draft`.
+  const mostRecentReport = reports[0] ?? null;
 
   if (authLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-100 text-sm text-slate-400">Carregando…</div>;
@@ -398,8 +403,14 @@ export default function App() {
               <RoadmapTimeline
                 objetivos={objetivos}
                 atividades={atividades}
-                projects={draft?.projects ?? []}
-                currentWeekStart={draft?.weekStart ?? todayISO()}
+                // Melhoria 2.2: the Roadmap is its own entity, independent of
+                // whichever report is open in the Editor/Snapshot (`draft`) —
+                // its "Atividades da Semana" always reflect the most recent
+                // report (same "ATUAL" report the History panel highlights),
+                // never the one currently being viewed/edited.
+                projects={mostRecentReport?.projects ?? []}
+                projectsWeekStart={mostRecentReport?.weekStart ?? currentWeekStartISO()}
+                currentWeekStart={currentWeekStartISO()}
                 readOnly={user.role === 'viewer'}
                 onEditAtividade={handleEditAtividadeFromTimeline}
               />

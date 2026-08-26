@@ -21,6 +21,12 @@ export interface Project {
    *  the two track different things (narrative vs. governed progress), see
    *  the app's own discussion of this in ReportEditor's section header. */
   linkedAtividadeId?: string;
+  /** Optional planned start/end (ISO dates), set by hand in the Editor —
+   *  when both are present, the Roadmap Timeline's "Atividades da Semana"
+   *  group (Melhoria 2.1) draws a normal date-range bar for this item
+   *  instead of falling back to a single-day point marker. */
+  plannedStart?: string;
+  plannedEnd?: string;
 }
 
 export interface Report {

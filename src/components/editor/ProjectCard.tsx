@@ -134,6 +134,31 @@ export default function ProjectCard({
               />
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-xs font-medium text-slate-500">
+                Prazo início (opcional)
+                <input
+                  type="date"
+                  value={project.plannedStart ?? ''}
+                  onChange={(e) => set('plannedStart', e.target.value || undefined)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+                />
+              </label>
+              <label className="block text-xs font-medium text-slate-500">
+                Prazo fim (opcional)
+                <input
+                  type="date"
+                  value={project.plannedEnd ?? ''}
+                  onChange={(e) => set('plannedEnd', e.target.value || undefined)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+                />
+              </label>
+              <p className="col-span-2 text-[11px] text-slate-400 -mt-1">
+                Se preenchido, aparece como uma barra no Roadmap Timeline (aba "Roadmap Timeline"); sem prazo, aparece
+                como um marcador na semana deste relatório.
+              </p>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="rounded-lg border-2 border-emerald-300 bg-emerald-50/60 p-2.5">
                 <label className="block text-xs font-semibold text-emerald-800 mb-1">

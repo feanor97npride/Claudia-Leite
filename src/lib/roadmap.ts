@@ -25,6 +25,24 @@ export function isVisibleThisWeek(atividade: Atividade, currentWeekStart: string
 }
 
 /**
+ * Roadmap Timeline visibility rule for extras (Melhoria 2.2) — deliberately
+ * different from isVisibleThisWeek above, which stays scoped to whatever
+ * report is open in the Editor. The Timeline is a continuous view of the
+ * whole roadmap anchored on today, not on the selected report, so an extra
+ * still open (planned/in_progress) only matters while its own week is the
+ * real current week — same "don't leave a stale TODO visible" rationale —
+ * but once DONE it becomes part of the permanent, accumulated history of
+ * what was delivered and must keep showing regardless of which week it was
+ * created in.
+ */
+export function isVisibleInTimeline(atividade: Atividade, currentWeekStart: string): boolean {
+  if (atividade.kind !== 'extra') return true;
+  if (atividade.status === 'done') return true;
+  if (!atividade.weekStart) return true;
+  return atividade.weekStart === currentWeekStart;
+}
+
+/**
  * Which of the 4 Timeline visual states an atividade is in. "Atrasado" has
  * no native status value (ActivityStatus is only planned/in_progress/done)
  * so it's derived: not done AND past its planned end date. Checked before
