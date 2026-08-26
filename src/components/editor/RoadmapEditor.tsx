@@ -559,8 +559,7 @@ function ObjetivoCard({
   const progress = computeObjetivoProgress(objetivo.id, atividades);
   const aheadBehind = computeObjetivoAheadBehind(objetivo.id, atividades);
   const week = currentWeekOfObjetivo(objetivo);
-  const progressBarColor =
-    progress >= 67 ? STATUS_META.on_track.color : progress >= 34 ? STATUS_META.attention.color : STATUS_META.delayed.color;
+  const progressBarColor = STATUS_META.on_track.color;
 
   useEffect(() => {
     if (!focusAtividadeId) return;

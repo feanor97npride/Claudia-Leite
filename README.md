@@ -412,9 +412,10 @@ auditoria que o próprio usuário não possa editar.
     agora expande e já entra em modo de edição só naquele item, em vez de
     também abrir o card inteiro do Objetivo para edição como efeito
     colateral.
-  - Barra de progresso do cabeçalho ganhou cor por faixa de avanço
-    (`STATUS_META` reaproveitado: vermelho <34%, âmbar 34-66%, verde
-    ≥67%), em vez de sempre `slate-900`.
+  - Barra de progresso do cabeçalho ganhou cor (verde,
+    `STATUS_META.on_track`), em vez de `slate-900` — testada uma variação
+    por faixa de avanço (vermelho/âmbar/verde conforme o %), mas descartada
+    a pedido do usuário em favor de uma cor fixa.
 
 **Ainda não feito** (próximos passos de UX, menor prioridade): revisão
 formal de contraste de cor (WCAG) e responsividade em telas mobile/tablet,
