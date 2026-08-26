@@ -542,12 +542,20 @@ auditoria que o próprio usuário não possa editar.
     das Atividades da Semana pula de semana). Corrigido em `App.tsx`:
     a Timeline agora recebe `currentWeekStart={currentWeekStartISO()}`
     (a segunda-feira da semana real de hoje, sempre, não a do relatório
-    aberto) e `projects`/`projectsWeekStart` vêm do relatório mais recente
-    (`reports[0]`, já ordenado desc por `weekStart` — o mesmo relatório que
-    o Histórico já marca como "ATUAL"), nunca de `draft`. A linha "hoje" já
-    usava `todayISO()` internamente e não precisou mudar; o que dependia do
-    relatório selecionado era só o filtro de visibilidade de extras e a
+    aberto) e nunca lê `draft` para as Atividades da Semana. A linha "hoje"
+    já usava `todayISO()` internamente e não precisou mudar; o que dependia
+    do relatório selecionado era só o filtro de visibilidade de extras e a
     origem dos projetos manuais.
+  - **Correção — acumular TODOS os relatórios, não só o mais recente**: a
+    primeira versão deste item usava só `reports[0]` (o relatório "ATUAL")
+    como fonte das Atividades da Semana, o que reproduzia o mesmo problema
+    de outra forma — semanas anteriores desapareciam do Roadmap assim que
+    uma semana nova era criada. Corrigido para acumular de verdade: `App.tsx`
+    agora constrói `manualItems` como um `flatMap` de `reports` inteiro,
+    cada `Project` pareado com o `weekStart` do SEU PRÓPRIO relatório (não
+    mais um único `projectsWeekStart` global) — o mesmo princípio já
+    aplicado às atividades extras concluídas, agora consistente também
+    para os itens manuais.
   - **Atividades extras concluídas viram legado permanente**: a regra
     antiga (`isVisibleThisWeek`, ainda usada como estava no Editor ao vivo)
     escondia qualquer atividade extra cuja semana de criação não fosse a

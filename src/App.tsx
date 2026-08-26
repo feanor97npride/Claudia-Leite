@@ -21,7 +21,7 @@ import { useToast } from './contexts/ToastContext';
 import Login from './components/Login';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import ReportEditor from './components/editor/ReportEditor';
-import RoadmapTimeline from './components/editor/RoadmapTimeline';
+import RoadmapTimeline, { type ManualTimelineItem } from './components/editor/RoadmapTimeline';
 import type { FocusAtividade } from './components/editor/RoadmapEditor';
 import SnapshotView from './components/snapshot/SnapshotView';
 import HistoryPanel from './components/history/HistoryPanel';
@@ -235,11 +235,15 @@ export default function App() {
   }
 
   const editorDisabled = useMemo(() => view === 'snapshot', [view]);
-  // reports is kept sorted desc by weekStart (see upsertIntoReports/
-  // loadReports) — reports[0] is the same "most recent = ATUAL" report
-  // HistoryPanel already highlights, reused here as the Roadmap's own
-  // reference report (Melhoria 2.2), independent of `draft`.
-  const mostRecentReport = reports[0] ?? null;
+  // Melhoria 2.2: the Roadmap accumulates "Atividades da Semana" from EVERY
+  // report in the History, not just the most recent one — same principle
+  // already applied to done extras (last week's items don't disappear once
+  // a newer report exists). Each project is tagged with its own report's
+  // weekStart, used as its point-marker fallback date.
+  const manualItems: ManualTimelineItem[] = useMemo(
+    () => reports.flatMap((r) => r.projects.map((project) => ({ project, weekStart: r.weekStart }))),
+    [reports],
+  );
 
   if (authLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-100 text-sm text-slate-400">Carregando…</div>;
@@ -405,11 +409,10 @@ export default function App() {
                 atividades={atividades}
                 // Melhoria 2.2: the Roadmap is its own entity, independent of
                 // whichever report is open in the Editor/Snapshot (`draft`) —
-                // its "Atividades da Semana" always reflect the most recent
-                // report (same "ATUAL" report the History panel highlights),
-                // never the one currently being viewed/edited.
-                projects={mostRecentReport?.projects ?? []}
-                projectsWeekStart={mostRecentReport?.weekStart ?? currentWeekStartISO()}
+                // its "Atividades da Semana" accumulate every report's items
+                // (manualItems), never scoped to the one currently being
+                // viewed/edited.
+                manualItems={manualItems}
                 currentWeekStart={currentWeekStartISO()}
                 readOnly={user.role === 'viewer'}
                 onEditAtividade={handleEditAtividadeFromTimeline}

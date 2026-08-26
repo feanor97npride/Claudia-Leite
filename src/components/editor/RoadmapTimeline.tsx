@@ -20,19 +20,26 @@ import { todayISO } from '../../utils/date';
 import AtividadeDetailModal from './AtividadeDetailModal';
 import HoverPreviewCard from './HoverPreviewCard';
 
+/** One report's free-narrative Project plus the ISO Monday of the report it
+ *  came from — every report contributes its own items, not just the most
+ *  recent one (Melhoria 2.2's "accumulated view" applies here too, same as
+ *  it does to done extras: last week's "Atividades da Semana" don't
+ *  disappear once a newer report exists). */
+export interface ManualTimelineItem {
+  project: Project;
+  weekStart: string;
+}
+
 interface Props {
   objetivos: Objetivo[];
   atividades: Atividade[];
-  /** The most recent report's free-narrative "Projetos / Iniciativas da
-   *  Semana" — not governed roadmap data, shown as its own optional group
-   *  ("Atividades da Semana", Melhoria 2). Most of them have no prazo of
-   *  their own (only the report's single weekStart, via `projectsWeekStart`
-   *  below); an item that does set plannedStart/plannedEnd gets a normal
-   *  range bar instead. */
-  projects: Project[];
-  /** ISO Monday of the week `projects` belongs to — used only as the
-   *  point-marker fallback date for a project with no prazo of its own. */
-  projectsWeekStart: string;
+  /** Every report's free-narrative "Projetos / Iniciativas da Semana",
+   *  across the whole history — not governed roadmap data, shown as its own
+   *  optional group ("Atividades da Semana", Melhoria 2). Most items have
+   *  no prazo of their own (only their own report's weekStart, used as the
+   *  point-marker fallback date); an item that does set plannedStart/
+   *  plannedEnd gets a normal range bar instead. */
+  manualItems: ManualTimelineItem[];
   /** Real "today" Monday (ISO), independent of any report selected in
    *  History (Melhoria 2.2) — the Roadmap's own time anchor, used for the
    *  "hoje" line and to decide which still-open extras count as current. */
@@ -62,8 +69,7 @@ type PreviewState = { atividade: Atividade; objetivo: Objetivo; anchorRect: DOMR
 export default function RoadmapTimeline({
   objetivos,
   atividades,
-  projects,
-  projectsWeekStart,
+  manualItems,
   currentWeekStart,
   readOnly,
   onEditAtividade,
@@ -329,24 +335,27 @@ export default function RoadmapTimeline({
     }))
     .filter((group) => group.rows.length > 0);
 
-  // Melhoria 2: the report's free-narrative "Projetos / Iniciativas da
-  // Semana" (shown here as "Atividades da Semana") usually have no
-  // plannedStart/plannedEnd of their own — those are placed as a single-day
-  // point at the report's own weekStart (projectsWeekStart), not a bar. An
-  // item that DOES set a prazo (Melhoria 2.1) gets a normal range bar
-  // instead, same placement logic as a governed atividade. Falls off the
-  // Timeline entirely if its date(s) land outside the displayed period
-  // range (same "no range, no row" convention already used for atividades).
-  const manualEligibleRows = projects
-    .map((project) => {
+  // Melhoria 2: every report's free-narrative "Projetos / Iniciativas da
+  // Semana" (shown here as "Atividades da Semana") accumulate across the
+  // whole history, not just the most recent report's (2.2) — an item
+  // usually has no plannedStart/plannedEnd of its own, so it's placed as a
+  // single-day point at ITS OWN report's weekStart, not a bar. An item that
+  // DOES set a prazo (Melhoria 2.1) gets a normal range bar instead, same
+  // placement logic as a governed atividade. Falls off the Timeline
+  // entirely if its date(s) land outside the displayed period range (same
+  // "no range, no row" convention already used for atividades).
+  const manualEligibleRows = manualItems
+    .map(({ project, weekStart }) => {
       const hasOwnDates = !!(project.plannedStart && project.plannedEnd);
       const range = hasOwnDates
         ? periodColumnRange(project.plannedStart!, project.plannedEnd!, periods)
-        : periodColumnRange(projectsWeekStart, projectsWeekStart, periods);
-      return { project, range, hasOwnDates };
+        : periodColumnRange(weekStart, weekStart, periods);
+      return { project, weekStart, range, hasOwnDates };
     })
     .filter(
-      (r): r is { project: Project; range: { startIdx: number; span: number }; hasOwnDates: boolean } =>
+      (
+        r,
+      ): r is { project: Project; weekStart: string; range: { startIdx: number; span: number }; hasOwnDates: boolean } =>
         r.range !== null,
     );
   const manualRows = showManualProjects ? manualEligibleRows : [];
@@ -762,7 +771,7 @@ export default function RoadmapTimeline({
                   </span>
                 </button>
                 {!manualCollapsed &&
-                  manualRows.map(({ project, range, hasOwnDates }) => {
+                  manualRows.map(({ project, weekStart, range, hasOwnDates }) => {
                     rowIndex++;
                     const zebra = rowIndex % 2 === 1;
                     const before = range.startIdx;
@@ -771,7 +780,7 @@ export default function RoadmapTimeline({
                     const projectName = project.name || 'Projeto sem nome';
                     const dateLabel = hasOwnDates
                       ? `${project.plannedStart} – ${project.plannedEnd}`
-                      : `sem prazo definido — marcador na semana de ${projectsWeekStart}`;
+                      : `sem prazo definido — marcador na semana de ${weekStart}`;
                     return (
                       <div key={project.id} className="contents">
                         <div
