@@ -374,6 +374,47 @@ auditoria que o próprio usuário não possa editar.
   modais e o formulário de nova atividade extra.
 - Empty states revisados para serem orientativos (ex: "nenhuma atividade
   cadastrada — adicione uma atividade extra abaixo para começar").
+- **Accordion + modo de edição na lista de atividades do Editor**
+  (`RoadmapEditor.tsx`) — cada atividade era sempre exibida com todos os
+  campos abertos; agora é um card colapsado por padrão:
+  - **Card colapsado**: nome, resumo do prazo ("dd/mm até dd/mm" ou "Prazo
+    não definido"), responsável (se preenchido), e um badge de status
+    colorido — mesma derivação de 4 estados (`timelineVisualStatus`) e
+    mesmas cores (`TIMELINE_STATUS_META`) já usadas na Roadmap Timeline
+    (Fase 1), só que com o vocabulário que este ecrã já usava
+    (Planejada/Em andamento/Concluída/Atrasada em vez de Não
+    iniciado/Atrasado). Uma bolinha âmbar aparece, mesmo colapsado, quando
+    falta prazo OU responsável — sinaliza pendência sem precisar abrir.
+  - **Clique expande** (chevron ▸/▾) — só um item por vez fica aberto
+    (accordion); abrir outro fecha o anterior. Animado via a técnica CSS
+    `grid-template-rows: 0fr → 1fr` (com `overflow:hidden` no wrapper),
+    não uma altura medida por JS — é a forma padrão de animar suavemente
+    até "auto" sem gambiarra de `scrollHeight`.
+  - **Modo de edição é um eixo independente do accordion**: um botão
+    "Editar"/"Concluir edição" ao lado do contador de itens ("N
+    atividades") alterna, para a lista inteira, se o item ABERTO no
+    momento mostra os campos como texto formatado (com placeholders tipo
+    "Não atribuído"/"Não definido"/"Nenhuma") ou como inputs editáveis —
+    colapsar/expandir e ligar/desligar edição são independentes. Um
+    detalhe de implementação: como o colapso é só CSS (o conteúdo
+    continua no DOM, só com altura 0), os inputs editáveis só são
+    montados para o item de fato aberto (`editMode && expanded`) — do
+    contrário todo item colapsado montaria seu próprio `<select>`/inputs
+    escondidos mas ainda focáveis por Tab, um bug real pego via Playwright
+    (contagem de `<select>` no DOM) antes do commit.
+  - Reaproveita a mesma mecânica de rascunho+validação que já existia
+    (motivo obrigatório ao replanejar uma data já definida — Bloco 1.2 —,
+    nome não pode ficar vazio, início < fim), só que agora dedicada à
+    lista de atividades; o botão "✎ Editar entrega" do cabeçalho do card
+    (nome/rótulo/período do Objetivo) continua separado, com seu próprio
+    Salvar/Cancelar.
+  - Navegar da Timeline até uma atividade específica (`focusAtividade`)
+    agora expande e já entra em modo de edição só naquele item, em vez de
+    também abrir o card inteiro do Objetivo para edição como efeito
+    colateral.
+  - Barra de progresso do cabeçalho ganhou cor por faixa de avanço
+    (`STATUS_META` reaproveitado: vermelho <34%, âmbar 34-66%, verde
+    ≥67%), em vez de sempre `slate-900`.
 
 **Ainda não feito** (próximos passos de UX, menor prioridade): revisão
 formal de contraste de cor (WCAG) e responsividade em telas mobile/tablet,
