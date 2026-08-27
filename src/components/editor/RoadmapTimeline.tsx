@@ -28,6 +28,12 @@ const HEADER_NAVY = '#1E2A47';
 const HEADER_MONTH_BG = '#2A3A5C';
 const HEADER_MONTH_TODAY_BG = '#3B4C78';
 
+/** Background of the "Período" row (Entrega N + date range, 2nd header
+ *  row) — the dashboard's own dark neutral, deliberately solid instead of a
+ *  lighter tint of the categoria color, so it reads as distinct from the
+ *  "Objetivos" row above it (which keeps the categoria's solid color). */
+const PERIODO_ROW_BG = '#0B0F2E';
+
 /** One report's free-narrative Project plus the ISO Monday of the report it
  *  came from — every report contributes its own items, not just the most
  *  recent one (Melhoria 2.2's "accumulated view" applies here too, same as
@@ -677,15 +683,15 @@ export default function RoadmapTimeline({
                segments as the Objetivos row above (see periodColumnRange). */}
             {objetivoBandSegments.map((seg, i) =>
               seg.kind === 'gap' ? (
-                <div key={`per-gap-${i}`} style={{ gridColumn: `span ${seg.span}`, backgroundColor: HEADER_NAVY, opacity: 0.85 }} />
+                <div key={`per-gap-${i}`} style={{ gridColumn: `span ${seg.span}`, backgroundColor: PERIODO_ROW_BG }} />
               ) : (
                 <div
                   key={`per-${seg.objetivo.id}`}
                   title={`${seg.objetivo.entregaLabel} — ${formatObjetivoPeriodLabel(seg.objetivo.periodStart, seg.objetivo.periodEnd)}`}
-                  className="flex flex-col items-center justify-center text-white py-1 leading-tight px-1"
-                  style={{ gridColumn: `span ${seg.span}`, backgroundColor: OBJETIVO_COLOR[seg.objetivo.id].bar, opacity: 0.85 }}
+                  className="flex flex-col items-center justify-center py-1 leading-tight px-1"
+                  style={{ gridColumn: `span ${seg.span}`, backgroundColor: PERIODO_ROW_BG, color: '#e2e8f0' }}
                 >
-                  <span className="text-[10px] font-semibold truncate max-w-full">{seg.objetivo.entregaLabel}</span>
+                  <span className="text-[10px] font-semibold truncate max-w-full text-white">{seg.objetivo.entregaLabel}</span>
                   <span className="text-[9px] font-normal opacity-90 truncate max-w-full">
                     {formatObjetivoPeriodLabel(seg.objetivo.periodStart, seg.objetivo.periodEnd)}
                   </span>
