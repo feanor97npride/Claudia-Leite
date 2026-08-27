@@ -676,20 +676,25 @@ export default function RoadmapTimeline({
             </div>
             {/* Objetivos band (mockup item 2/3): each objetivo's own color,
                spanning the columns its period covers. */}
-            {objetivoBandSegments.map((seg, i) =>
-              seg.kind === 'gap' ? (
-                <div key={`obj-gap-${i}`} style={{ gridColumn: `span ${seg.span}`, backgroundColor: HEADER_NAVY }} />
-              ) : (
+            {objetivoBandSegments.map((seg, i) => {
+              if (seg.kind === 'gap') {
+                return <div key={`obj-gap-${i}`} style={{ gridColumn: `span ${seg.span}`, backgroundColor: HEADER_NAVY }} />;
+              }
+              const progress = computeObjetivoProgress(seg.objetivo.id, atividades);
+              return (
                 <div
                   key={seg.objetivo.id}
-                  title={seg.objetivo.name}
-                  className="flex items-center justify-center text-white text-xs font-semibold py-2 px-1 truncate"
+                  title={`${seg.objetivo.name} — ${progress}% concluído`}
+                  className="relative flex items-center justify-center text-white text-xs font-semibold py-2 pl-1 pr-9"
                   style={{ gridColumn: `span ${seg.span}`, backgroundColor: OBJETIVO_COLOR[seg.objetivo.id].bar }}
                 >
-                  {seg.objetivo.name}
+                  <span className="truncate max-w-full">{seg.objetivo.name}</span>
+                  <span className="absolute top-1 right-1 text-[9px] font-bold bg-white/25 rounded-full px-1.5 py-0.5 leading-none shrink-0">
+                    {progress}%
+                  </span>
                 </div>
-              ),
-            )}
+              );
+            })}
             {/* Período band: entrega label + date range by extenso, same
                segments as the Objetivos row above (see periodColumnRange). */}
             {objetivoBandSegments.map((seg, i) =>
