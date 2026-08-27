@@ -807,6 +807,11 @@ export default function RoadmapTimeline({
                     const statusMeta = TIMELINE_STATUS_META[status];
                     const isDone = status === 'done';
                     const fillPercent = computeBarFillPercent(atividade, today);
+                    // Estratégia Futura's amber is too light for white text at
+                    // WCAG AA (~2.2:1) — every other categoria color is dark
+                    // enough that white clears 4.5:1 on both the solid and
+                    // faded (30%-alpha) zones of the bar below.
+                    const barTextColor = group.objetivo.id === 'estrategia_futura' ? '#78350f' : '#ffffff';
                     const handleClick = (e: React.MouseEvent<HTMLElement>) => {
                       if (isTouch) {
                         handleItemTap(atividade, group.objetivo, e.currentTarget);
@@ -869,17 +874,15 @@ export default function RoadmapTimeline({
                           className={`border-b border-l border-slate-100 relative py-0.5 ${zebra ? 'bg-slate-50/60' : ''}`}
                           style={{ gridColumn: `span ${range.span}` }}
                         >
-                          {/* Status-based palette (TIMELINE_STATUS_META), not the
-                             objetivo color — grouping is already carried by the
-                             colored header row above, so the bar itself is free
-                             to encode status (the thing this Timeline redesign's
-                             Fase 1 asked to make legible at a glance): solid
-                             green/blue/red fills with white text, and a pale
-                             outline for "não iniciado" — every pair checked by
-                             hand for WCAG AA (>=4.5:1), never an opacity/
-                             grayscale dim (see the visual-hierarchy note in
-                             types.ts — that dilutes contrast, a real color swap
-                             doesn't). */}
+                          {/* Categoria color drives the fill now, not status:
+                             solid up to fillPercent (% of the planned time
+                             already elapsed — computeBarFillPercent, the
+                             same value the old bottom strip used), the same
+                             hue at 30% alpha for the remainder — a hard-edge
+                             two-stop gradient (equal-position stops), not a
+                             blend, so the boundary itself reads as "done vs.
+                             remaining". Status still shows via the ✓/⚠ icons
+                             and the row's name-cell dot/text color. */}
                           <button
                             type="button"
                             data-hover-item
@@ -888,30 +891,25 @@ export default function RoadmapTimeline({
                             onMouseLeave={scheduleHide}
                             className={`absolute inset-y-1 left-0.5 right-0.5 rounded flex items-center gap-1 px-1.5 text-[10px] font-semibold cursor-pointer hover:brightness-110 hover:ring-2 hover:ring-black/10 transition-all duration-200 ease-out ${
                               isDone ? 'ring-1 ring-white/60 shadow-sm' : ''
-                            } ${status === 'planned' ? 'border-2' : ''}`}
+                            }`}
                             style={{
-                              backgroundColor: statusMeta.bg,
-                              color: statusMeta.text,
-                              borderColor: statusMeta.border,
-                              backgroundImage: statusMeta.pattern
-                                ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.15) 0 6px, transparent 6px 12px)'
-                                : undefined,
+                              background: `linear-gradient(to right, ${color.bar} 0%, ${color.bar} ${fillPercent}%, ${color.bar}4d ${fillPercent}%, ${color.bar}4d 100%)`,
+                              color: barTextColor,
+                              // The faded (30%-alpha) zone is pale enough that
+                              // plain white text loses contrast there — a dark
+                              // halo keeps the name legible no matter where the
+                              // solid/faded boundary falls, without needing a
+                              // second text color per zone. Skipped for
+                              // Estratégia Futura, which already uses dark text
+                              // (safe on both zones since its faded tint is
+                              // still light).
+                              textShadow: barTextColor === '#ffffff' ? '0 1px 2px rgba(0,0,0,0.6)' : undefined,
                             }}
                           >
                             {isDone && <span aria-hidden="true">✓</span>}
                             {status === 'atrasado' && <span aria-hidden="true">⚠</span>}
                             <span className="flex-1 min-w-0 truncate">{atividade.name}</span>
-                            {/* % do prazo planejado já decorrido (proxy de progresso —
-                               não há um campo de "% concluído" por atividade; ver
-                               computeBarFillPercent). Tira fina no rodapé da barra,
-                               fora da linha do texto, então nunca reduz o contraste
-                               do rótulo. */}
-                            <div
-                              aria-hidden="true"
-                              className="absolute left-0 right-0 bottom-0 h-[3px] rounded-b bg-black/15 overflow-hidden"
-                            >
-                              <div className="h-full bg-white/70" style={{ width: `${fillPercent}%` }} />
-                            </div>
+                            <span className="shrink-0 opacity-90 font-mono">{fillPercent}%</span>
                           </button>
                         </div>
                         {after > 0 && (
