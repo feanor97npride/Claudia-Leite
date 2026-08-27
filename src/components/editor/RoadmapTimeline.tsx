@@ -78,12 +78,6 @@ const MANUAL_GROUP_COLOR = { tint: '#faf5ff', text: '#7e22ce', bar: '#a855f7' };
  *  governed roadmap" next to the vivid Objetivo palette. */
 const BACKLOG_GROUP_COLOR = { tint: '#f8fafc', text: '#475569', bar: '#94a3b8' };
 
-/** Background of the 2nd-level "Entrega" sub-header, nested under each
- *  Categoria group — the dashboard's own dark neutral, deliberately NOT a
- *  lighter tint of the categoria color (which the header row above already
- *  uses), so the two levels stay visually distinct at a glance. */
-const ENTREGA_SUBHEADER_BG = '#0B0F2E';
-
 const HOVER_SHOW_DELAY = 250;
 const HOVER_HIDE_DELAY = 150;
 
@@ -776,29 +770,6 @@ export default function RoadmapTimeline({
               const plannedItems = atividades.filter((a) => a.objetivoId === group.objetivo.id && a.kind === 'planned');
               const doneCount = plannedItems.filter((a) => a.status === 'done').length;
               const progress = computeObjetivoProgress(group.objetivo.id, atividades);
-
-              // 2nd-level grouping: which Entrega window an atividade's OWN
-              // plannedStart actually falls into — not which Objetivo it's
-              // formally linked to. Each Objetivo already owns exactly one
-              // Entrega (entregaLabel + period), so this is only meaningful
-              // when it differs from the row's home Categoria: it surfaces
-              // an atividade that "slipped" into a later Entrega's window
-              // while still belonging to this Categoria. Falls back to the
-              // row's own Objetivo when its date lands in a gap between
-              // Entregas (no period actually contains it).
-              const entregaBuckets = new Map<ObjetivoId, { objetivo: Objetivo; rows: typeof group.rows }>();
-              for (const row of group.rows) {
-                const matched =
-                  objetivos.find((o) => o.periodStart <= row.atividade.plannedStart && row.atividade.plannedStart <= o.periodEnd) ??
-                  group.objetivo;
-                const bucket = entregaBuckets.get(matched.id);
-                if (bucket) bucket.rows.push(row);
-                else entregaBuckets.set(matched.id, { objetivo: matched, rows: [row] });
-              }
-              const entregaGroups = Array.from(entregaBuckets.values()).sort((a, b) =>
-                a.objetivo.periodStart.localeCompare(b.objetivo.periodStart),
-              );
-
               return (
                 <div key={group.objetivo.id} className="contents">
                   <button
@@ -816,165 +787,133 @@ export default function RoadmapTimeline({
                       {doneCount}/{plannedItems.length} concluídas — {progress}%
                     </span>
                   </button>
-                  {!isCollapsed && entregaGroups.map((entregaGroup) => {
-                    const slipped = entregaGroup.objetivo.id !== group.objetivo.id;
-                    const subDone = entregaGroup.rows.filter(
-                      ({ atividade }) => timelineVisualStatus(atividade, today) === 'done',
-                    ).length;
-                    const subTotal = entregaGroup.rows.length;
-                    const subProgress = subTotal > 0 ? Math.round((subDone / subTotal) * 100) : 0;
+                  {!isCollapsed && group.rows.map(({ atividade, range }) => {
+                    rowIndex++;
+                    const zebra = rowIndex % 2 === 1;
+                    const before = range.startIdx;
+                    const after = periods.length - range.startIdx - range.span;
+                    const openDetail = () => {
+                      clearTimers();
+                      setPreview(null);
+                      setSelected({ atividade, objetivo: group.objetivo });
+                    };
+                    const status = timelineVisualStatus(atividade, today);
+                    const statusMeta = TIMELINE_STATUS_META[status];
+                    const isDone = status === 'done';
+                    const fillPercent = computeBarFillPercent(atividade, today);
+                    const handleClick = (e: React.MouseEvent<HTMLElement>) => {
+                      if (isTouch) {
+                        handleItemTap(atividade, group.objetivo, e.currentTarget);
+                      } else {
+                        openDetail();
+                      }
+                    };
+                    const handleMouseEnter = (e: React.MouseEvent<HTMLElement>) =>
+                      scheduleShow(atividade, group.objetivo, e.currentTarget);
                     return (
-                      <div key={entregaGroup.objetivo.id} className="contents">
+                      <div key={atividade.id} className="contents">
                         <div
-                          className="w-full flex items-center justify-between gap-2 px-2 py-1 pl-6 font-medium border-b text-[11px]"
-                          style={{ backgroundColor: ENTREGA_SUBHEADER_BG, color: '#e2e8f0', gridColumn: `span ${periods.length + 1}` }}
+                          data-hover-item
+                          onClick={handleClick}
+                          onMouseEnter={handleMouseEnter}
+                          onMouseLeave={scheduleHide}
+                          className={`sticky left-0 z-[15] shadow-[3px_0_6px_-2px_rgba(0,0,0,0.12)] border-b border-slate-100 px-2 py-2.5 cursor-pointer hover:bg-slate-100 flex items-center gap-1.5 min-w-0 transition-colors duration-200 ease-out ${
+                            zebra ? 'bg-slate-50' : 'bg-white'
+                          } ${
+                            isDone
+                              ? 'text-slate-900 font-semibold'
+                              : status === 'atrasado'
+                                ? 'text-red-700 font-medium'
+                                : 'text-slate-500'
+                          }`}
+                          title={`${group.objetivo.entregaLabel} — ${atividade.name} (${statusMeta.label}) — clique para detalhes`}
                         >
-                          <span className="flex items-center gap-1.5 min-w-0">
-                            <span aria-hidden="true" className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color.bar }} />
-                            <span className="truncate">
-                              {entregaGroup.objetivo.entregaLabel} ·{' '}
-                              {formatObjetivoPeriodLabel(entregaGroup.objetivo.periodStart, entregaGroup.objetivo.periodEnd)}
+                          <span
+                            aria-hidden="true"
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{
+                              backgroundColor: status === 'planned' ? '#ffffff' : statusMeta.bg,
+                              border: status === 'planned' ? `1.5px solid ${statusMeta.border}` : 'none',
+                            }}
+                          />
+                          {isDone && (
+                            <span aria-hidden="true" className="text-emerald-600 shrink-0">
+                              ✓
                             </span>
-                            {slipped && (
-                              <span className="text-[8px] font-bold uppercase tracking-wide bg-amber-200 text-amber-900 rounded px-1 py-0.5 shrink-0">
-                                Fora do previsto
-                              </span>
-                            )}
-                          </span>
-                          <span className="opacity-80 shrink-0">
-                            {subDone}/{subTotal} concluídas — {subProgress}%
-                          </span>
+                          )}
+                          {status === 'atrasado' && (
+                            <span aria-hidden="true" className="shrink-0">
+                              ⚠
+                            </span>
+                          )}
+                          <span className="flex-1 min-w-0 truncate">{atividade.name}</span>
+                          {atividade.kind === 'extra' && (
+                            <span className="text-[8px] font-bold uppercase tracking-wide bg-purple-100 text-purple-700 rounded px-1 py-0.5 shrink-0">
+                              Extra
+                            </span>
+                          )}
                         </div>
-                        {entregaGroup.rows.map(({ atividade, range }) => {
-                      rowIndex++;
-                      const zebra = rowIndex % 2 === 1;
-                      const before = range.startIdx;
-                      const after = periods.length - range.startIdx - range.span;
-                      const openDetail = () => {
-                        clearTimers();
-                        setPreview(null);
-                        setSelected({ atividade, objetivo: group.objetivo });
-                      };
-                      const status = timelineVisualStatus(atividade, today);
-                      const statusMeta = TIMELINE_STATUS_META[status];
-                      const isDone = status === 'done';
-                      const fillPercent = computeBarFillPercent(atividade, today);
-                      const handleClick = (e: React.MouseEvent<HTMLElement>) => {
-                        if (isTouch) {
-                          handleItemTap(atividade, group.objetivo, e.currentTarget);
-                        } else {
-                          openDetail();
-                        }
-                      };
-                      const handleMouseEnter = (e: React.MouseEvent<HTMLElement>) =>
-                        scheduleShow(atividade, group.objetivo, e.currentTarget);
-                      return (
-                        <div key={atividade.id} className="contents">
+                        {before > 0 && (
                           <div
+                            className={`border-b border-l border-slate-100 ${zebra ? 'bg-slate-50/60' : ''}`}
+                            style={{ gridColumn: `span ${before}` }}
+                          />
+                        )}
+                        <div
+                          className={`border-b border-l border-slate-100 relative py-0.5 ${zebra ? 'bg-slate-50/60' : ''}`}
+                          style={{ gridColumn: `span ${range.span}` }}
+                        >
+                          {/* Status-based palette (TIMELINE_STATUS_META), not the
+                             objetivo color — grouping is already carried by the
+                             colored header row above, so the bar itself is free
+                             to encode status (the thing this Timeline redesign's
+                             Fase 1 asked to make legible at a glance): solid
+                             green/blue/red fills with white text, and a pale
+                             outline for "não iniciado" — every pair checked by
+                             hand for WCAG AA (>=4.5:1), never an opacity/
+                             grayscale dim (see the visual-hierarchy note in
+                             types.ts — that dilutes contrast, a real color swap
+                             doesn't). */}
+                          <button
+                            type="button"
                             data-hover-item
                             onClick={handleClick}
                             onMouseEnter={handleMouseEnter}
                             onMouseLeave={scheduleHide}
-                            className={`sticky left-0 z-[15] shadow-[3px_0_6px_-2px_rgba(0,0,0,0.12)] border-b border-slate-100 px-2 py-2.5 cursor-pointer hover:bg-slate-100 flex items-center gap-1.5 min-w-0 transition-colors duration-200 ease-out ${
-                              zebra ? 'bg-slate-50' : 'bg-white'
-                            } ${
-                              isDone
-                                ? 'text-slate-900 font-semibold'
-                                : status === 'atrasado'
-                                  ? 'text-red-700 font-medium'
-                                  : 'text-slate-500'
-                            }`}
-                            title={`${group.objetivo.entregaLabel} — ${atividade.name} (${statusMeta.label}) — clique para detalhes`}
+                            className={`absolute inset-y-1 left-0.5 right-0.5 rounded flex items-center gap-1 px-1.5 text-[10px] font-semibold cursor-pointer hover:brightness-110 hover:ring-2 hover:ring-black/10 transition-all duration-200 ease-out ${
+                              isDone ? 'ring-1 ring-white/60 shadow-sm' : ''
+                            } ${status === 'planned' ? 'border-2' : ''}`}
+                            style={{
+                              backgroundColor: statusMeta.bg,
+                              color: statusMeta.text,
+                              borderColor: statusMeta.border,
+                              backgroundImage: statusMeta.pattern
+                                ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.15) 0 6px, transparent 6px 12px)'
+                                : undefined,
+                            }}
                           >
-                            <span
-                              aria-hidden="true"
-                              className="w-2 h-2 rounded-full shrink-0"
-                              style={{
-                                backgroundColor: status === 'planned' ? '#ffffff' : statusMeta.bg,
-                                border: status === 'planned' ? `1.5px solid ${statusMeta.border}` : 'none',
-                              }}
-                            />
-                            {isDone && (
-                              <span aria-hidden="true" className="text-emerald-600 shrink-0">
-                                ✓
-                              </span>
-                            )}
-                            {status === 'atrasado' && (
-                              <span aria-hidden="true" className="shrink-0">
-                                ⚠
-                              </span>
-                            )}
+                            {isDone && <span aria-hidden="true">✓</span>}
+                            {status === 'atrasado' && <span aria-hidden="true">⚠</span>}
                             <span className="flex-1 min-w-0 truncate">{atividade.name}</span>
-                            {atividade.kind === 'extra' && (
-                              <span className="text-[8px] font-bold uppercase tracking-wide bg-purple-100 text-purple-700 rounded px-1 py-0.5 shrink-0">
-                                Extra
-                              </span>
-                            )}
-                          </div>
-                          {before > 0 && (
+                            {/* % do prazo planejado já decorrido (proxy de progresso —
+                               não há um campo de "% concluído" por atividade; ver
+                               computeBarFillPercent). Tira fina no rodapé da barra,
+                               fora da linha do texto, então nunca reduz o contraste
+                               do rótulo. */}
                             <div
-                              className={`border-b border-l border-slate-100 ${zebra ? 'bg-slate-50/60' : ''}`}
-                              style={{ gridColumn: `span ${before}` }}
-                            />
-                          )}
-                          <div
-                            className={`border-b border-l border-slate-100 relative py-0.5 ${zebra ? 'bg-slate-50/60' : ''}`}
-                            style={{ gridColumn: `span ${range.span}` }}
-                          >
-                            {/* Status-based palette (TIMELINE_STATUS_META), not the
-                               objetivo color — grouping is already carried by the
-                               colored header row above, so the bar itself is free
-                               to encode status (the thing this Timeline redesign's
-                               Fase 1 asked to make legible at a glance): solid
-                               green/blue/red fills with white text, and a pale
-                               outline for "não iniciado" — every pair checked by
-                               hand for WCAG AA (>=4.5:1), never an opacity/
-                               grayscale dim (see the visual-hierarchy note in
-                               types.ts — that dilutes contrast, a real color swap
-                               doesn't). */}
-                            <button
-                              type="button"
-                              data-hover-item
-                              onClick={handleClick}
-                              onMouseEnter={handleMouseEnter}
-                              onMouseLeave={scheduleHide}
-                              className={`absolute inset-y-1 left-0.5 right-0.5 rounded flex items-center gap-1 px-1.5 text-[10px] font-semibold cursor-pointer hover:brightness-110 hover:ring-2 hover:ring-black/10 transition-all duration-200 ease-out ${
-                                isDone ? 'ring-1 ring-white/60 shadow-sm' : ''
-                              } ${status === 'planned' ? 'border-2' : ''}`}
-                              style={{
-                                backgroundColor: statusMeta.bg,
-                                color: statusMeta.text,
-                                borderColor: statusMeta.border,
-                                backgroundImage: statusMeta.pattern
-                                  ? 'repeating-linear-gradient(135deg, rgba(255,255,255,0.15) 0 6px, transparent 6px 12px)'
-                                  : undefined,
-                              }}
+                              aria-hidden="true"
+                              className="absolute left-0 right-0 bottom-0 h-[3px] rounded-b bg-black/15 overflow-hidden"
                             >
-                              {isDone && <span aria-hidden="true">✓</span>}
-                              {status === 'atrasado' && <span aria-hidden="true">⚠</span>}
-                              <span className="flex-1 min-w-0 truncate">{atividade.name}</span>
-                              {/* % do prazo planejado já decorrido (proxy de progresso —
-                                 não há um campo de "% concluído" por atividade; ver
-                                 computeBarFillPercent). Tira fina no rodapé da barra,
-                                 fora da linha do texto, então nunca reduz o contraste
-                                 do rótulo. */}
-                              <div
-                                aria-hidden="true"
-                                className="absolute left-0 right-0 bottom-0 h-[3px] rounded-b bg-black/15 overflow-hidden"
-                              >
-                                <div className="h-full bg-white/70" style={{ width: `${fillPercent}%` }} />
-                              </div>
-                            </button>
-                          </div>
-                          {after > 0 && (
-                            <div
-                              className={`border-b border-l border-slate-100 ${zebra ? 'bg-slate-50/60' : ''}`}
-                              style={{ gridColumn: `span ${after}` }}
-                            />
-                          )}
+                              <div className="h-full bg-white/70" style={{ width: `${fillPercent}%` }} />
+                            </div>
+                          </button>
                         </div>
-                      );
-                    })}
+                        {after > 0 && (
+                          <div
+                            className={`border-b border-l border-slate-100 ${zebra ? 'bg-slate-50/60' : ''}`}
+                            style={{ gridColumn: `span ${after}` }}
+                          />
+                        )}
                       </div>
                     );
                   })}
