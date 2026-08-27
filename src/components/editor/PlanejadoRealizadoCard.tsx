@@ -1,9 +1,8 @@
 interface Props {
-  /** % that SHOULD already be done today per the original schedule — the
-   *  average, across every atividade currently visible on the Timeline, of
-   *  how much of its own planned window has elapsed (computeBarFillPercent;
-   *  same formula "Progresso Geral" used before being simplified to
-   *  concluídas/total). */
+  /** % of atividades that SHOULD already be done today — those whose
+   *  plannedEnd has already passed (deadline-based, not a partial-progress
+   *  estimate). Same denominator as realizadoPct below, so the two are
+   *  directly comparable: more done than overdue means ahead of schedule. */
   planejadoPct: number;
   /** % actually done — concluídas/total, same number as the "Concluídas"
    *  stat card and the current "Progresso Geral" card. */
