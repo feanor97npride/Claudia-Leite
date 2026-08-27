@@ -373,24 +373,18 @@ export default function RoadmapTimeline({
   const indicatorStatuses = indicatorAtividades.map((a) => timelineVisualStatus(a, today));
   const indicatorProgressPercents = indicatorAtividades.map((a) => computeBarFillPercent(a, today));
   // "Planejado vs. realizado" card: realizado = concluídas/total (same
-  // number as the "Concluídas" stat card). Planejado = fração de atividades
-  // cujo PRAZO FINAL planejado já passou (deveriam estar concluídas hoje,
-  // segundo o cronograma original) — não é uma média de progresso parcial.
-  // Uma atividade sem plannedEnd nunca conta como "já deveria estar
-  // concluída" (não tem prazo para vencer). Mesmo denominador que
-  // realizadoPct, então os dois são diretamente comparáveis: se mais
-  // atividades estão concluídas do que atividades já vencidas, o roadmap
-  // está à frente do planejado.
+  // number as the "Concluídas" stat card); planejado = the average of
+  // indicatorProgressPercents (same formula as "Progresso Geral" above) —
+  // i.e. how much of the roadmap SHOULD be done today per each atividade's
+  // own schedule, vs. how much actually is.
   const realizadoPct =
     indicatorStatuses.length === 0
       ? 0
       : Math.round((indicatorStatuses.filter((s) => s === 'done').length / indicatorStatuses.length) * 100);
   const planejadoPct =
-    indicatorAtividades.length === 0
+    indicatorProgressPercents.length === 0
       ? 0
-      : Math.round(
-          (indicatorAtividades.filter((a) => a.plannedEnd && a.plannedEnd <= today).length / indicatorAtividades.length) * 100,
-        );
+      : Math.round(indicatorProgressPercents.reduce((sum, p) => sum + p, 0) / indicatorProgressPercents.length);
 
   const responsavelOptions = Array.from(
     new Set(
