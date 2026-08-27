@@ -358,10 +358,19 @@ export default function RoadmapTimeline({
       .filter((a): a is Atividade & { plannedStart: string; plannedEnd: string } => !!a.plannedStart && !!a.plannedEnd)
       .map((atividade) => ({ atividade, objetivo })),
   );
-  // Indicator cards above the grid (mockup item 4) — scoped to the same
-  // "eligible" universe as the grid itself, independent of which filter
-  // chips are currently active.
-  const eligibleStatuses = eligibleRows.map(({ atividade }) => timelineVisualStatus(atividade, today));
+  // Indicator cards above the grid (mockup item 4) — a DIFFERENT universe
+  // from eligibleRows/eligibleStatuses above: those need a full planned
+  // start+end to draw a bar in the grid, but a status or progress % is
+  // still meaningful without one, so an atividade with no prazo yet
+  // wouldn't otherwise be counted anywhere in these cards. Recomputed
+  // straight from the `atividades` prop on every render — editing a
+  // status or subtask % anywhere updates these automatically, no separate
+  // cache to go stale.
+  const indicatorAtividades = objetivos.flatMap((objetivo) =>
+    atividadesForObjetivo(objetivo.id, atividades).filter((a) => isVisibleInTimeline(a, currentWeekStart)),
+  );
+  const indicatorStatuses = indicatorAtividades.map((a) => timelineVisualStatus(a, today));
+  const indicatorProgressPercents = indicatorAtividades.map((a) => computeBarFillPercent(a, today));
 
   const responsavelOptions = Array.from(
     new Set(
@@ -496,7 +505,9 @@ export default function RoadmapTimeline({
           </button>
         </div>
       </div>
-      {eligibleStatuses.length > 0 && <TimelineStatCards statuses={eligibleStatuses} />}
+      {indicatorStatuses.length > 0 && (
+        <TimelineStatCards statuses={indicatorStatuses} progressPercents={indicatorProgressPercents} />
+      )}
       {eligibleRows.length === 0 && manualEligibleRows.length === 0 && backlogEligibleRows.length === 0 ? (
         <p className="text-xs text-slate-400 italic">
           Nenhuma atividade com início e fim planejados definidos ainda — defina o "Prazo" de uma

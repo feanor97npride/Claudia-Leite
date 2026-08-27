@@ -3,10 +3,18 @@ import { TIMELINE_STATUS_META } from '../../types';
 
 interface Props {
   /** Visual status (already derived — done/in_progress/atrasado/planned) of
-   *  every atividade currently eligible for the Timeline, independent of
-   *  the Categoria/Status/Responsável filter chips (a stats summary of
-   *  "what's plannable", not "what's currently shown"). */
+   *  every atividade currently visible in the Timeline, independent of the
+   *  Categoria/Status/Responsável filter chips (a stats summary of "what's
+   *  on the roadmap", not "what's currently shown"). Same length/order
+   *  universe as `progressPercents` below — index i of one is the same
+   *  atividade as index i of the other. */
   statuses: TimelineVisualStatus[];
+  /** Each atividade's own progress % (computeBarFillPercent) — averaged for
+   *  "Progresso Geral", which is the mean of every atividade's individual
+   *  progress, NOT the fraction that's done (a done-but-just-started-late
+   *  quarter and a done-on-day-one quarter both count as 100% done, but a
+   *  roadmap that's 80% "in progress" everywhere isn't 0% done either). */
+  progressPercents: number[];
 }
 
 function ProgressRing({ pct, size = 56, stroke = 6 }: { pct: number; size?: number; stroke?: number }) {
@@ -50,10 +58,11 @@ function StatCard({ colorBg, colorText, label, value, sub }: { colorBg: string; 
 }
 
 /** Indicator row above the Timeline grid (mockup item 4) — progress ring +
- *  one stat card per visual status, computed from whatever atividades are
- *  currently eligible to appear on the Timeline (has a full prazo defined),
- *  the same universe eligibleRows already represents. */
-export default function TimelineStatCards({ statuses }: Props) {
+ *  one stat card per visual status, computed from every atividade currently
+ *  visible on the Timeline (RoadmapTimeline's `indicatorAtividades`) — does
+ *  NOT require a planned start/end, unlike the atividades eligible to draw
+ *  a bar in the grid below. */
+export default function TimelineStatCards({ statuses, progressPercents }: Props) {
   const total = statuses.length;
   const count = (s: TimelineVisualStatus) => statuses.filter((v) => v === s).length;
   const pct = (n: number) => (total === 0 ? '0%' : `${Math.round((n / total) * 100)}%`);
@@ -61,7 +70,10 @@ export default function TimelineStatCards({ statuses }: Props) {
   const inProgress = count('in_progress');
   const atrasado = count('atrasado');
   const planned = count('planned');
-  const progressoGeral = total === 0 ? 0 : Math.round((done / total) * 100);
+  const progressoGeral =
+    progressPercents.length === 0
+      ? 0
+      : Math.round(progressPercents.reduce((sum, p) => sum + p, 0) / progressPercents.length);
 
   return (
     // Below `sm`, this scrolls horizontally as a compact chip strip instead
