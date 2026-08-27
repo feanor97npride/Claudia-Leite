@@ -5,6 +5,7 @@ import {
   atividadesForObjetivo,
   computeBarFillPercent,
   computeObjetivoProgress,
+  computeScheduledProgressPercent,
   isVisibleInTimeline,
   timelineVisualStatus,
 } from '../../lib/roadmap';
@@ -373,24 +374,21 @@ export default function RoadmapTimeline({
   const indicatorStatuses = indicatorAtividades.map((a) => timelineVisualStatus(a, today));
   const indicatorProgressPercents = indicatorAtividades.map((a) => computeBarFillPercent(a, today));
   // "Planejado vs. realizado" card: realizado = concluídas/total (same
-  // number as the "Concluídas" stat card). Planejado = fração de atividades
-  // cujo PRAZO FINAL planejado já passou (deveriam estar concluídas hoje,
-  // segundo o cronograma original) — não é uma média de progresso parcial.
-  // Uma atividade sem plannedEnd nunca conta como "já deveria estar
-  // concluída" (não tem prazo para vencer). Mesmo denominador que
-  // realizadoPct, então os dois são diretamente comparáveis: se mais
-  // atividades estão concluídas do que atividades já vencidas, o roadmap
-  // está à frente do planejado.
+  // number as the "Concluídas" stat card). Planejado = média de
+  // computeScheduledProgressPercent — para cada atividade, 0% se ainda não
+  // começou, 100% se seu prazo final já passou, e o % do próprio período
+  // planejado já decorrido caso contrário. Nunca binário/travado em 0%: uma
+  // atividade em andamento dentro do próprio prazo já contribui um valor
+  // proporcional (não precisa esperar o prazo vencer).
   const realizadoPct =
     indicatorStatuses.length === 0
       ? 0
       : Math.round((indicatorStatuses.filter((s) => s === 'done').length / indicatorStatuses.length) * 100);
+  const scheduledProgressPercents = indicatorAtividades.map((a) => computeScheduledProgressPercent(a, today));
   const planejadoPct =
-    indicatorAtividades.length === 0
+    scheduledProgressPercents.length === 0
       ? 0
-      : Math.round(
-          (indicatorAtividades.filter((a) => a.plannedEnd && a.plannedEnd <= today).length / indicatorAtividades.length) * 100,
-        );
+      : Math.round(scheduledProgressPercents.reduce((sum, p) => sum + p, 0) / scheduledProgressPercents.length);
 
   const responsavelOptions = Array.from(
     new Set(

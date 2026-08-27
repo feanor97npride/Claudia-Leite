@@ -44,6 +44,13 @@ export default function PlanejadoRealizadoCard({ planejadoPct, realizadoPct }: P
       <div className="relative pt-5">
         <span
           aria-hidden="true"
+          className="absolute top-0 -translate-x-1/2 text-[9px] font-bold uppercase tracking-wide whitespace-nowrap"
+          style={{ left: `${Math.min(100, Math.max(0, realizadoPct))}%`, color: fillColor }}
+        >
+          Realizado
+        </span>
+        <span
+          aria-hidden="true"
           className="absolute top-0 -translate-x-1/2 text-[9px] font-bold uppercase tracking-wide text-slate-500 whitespace-nowrap"
           style={{ left: `${Math.min(100, Math.max(0, planejadoPct))}%` }}
         >

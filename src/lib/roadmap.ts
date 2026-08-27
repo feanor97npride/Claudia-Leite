@@ -82,6 +82,27 @@ export function computeBarFillPercent(a: Atividade, todayISO: string): number {
   return Math.max(0, Math.min(100, Math.round(((now - start) / (end - start)) * 100)));
 }
 
+/**
+ * Where the atividade's OWN planned schedule says it should be today, 0-100
+ * — purely date-based, unlike computeBarFillPercent: never overridden by an
+ * actual 'done' status or by real subtask data, since this is "expected
+ * progress per the original plan", not "actual observed progress". Used for
+ * the "Planejado vs. realizado" roadmap-wide comparison, where the whole
+ * point is contrasting what the schedule predicted against what's really
+ * done. No planned window at all reads as 0% (nothing to be behind or ahead
+ * of yet).
+ */
+export function computeScheduledProgressPercent(a: Atividade, todayISO: string): number {
+  if (!a.plannedStart || !a.plannedEnd) return 0;
+  if (todayISO < a.plannedStart) return 0;
+  if (todayISO > a.plannedEnd) return 100;
+  const start = new Date(a.plannedStart + 'T00:00:00').getTime();
+  const end = new Date(a.plannedEnd + 'T00:00:00').getTime();
+  const now = new Date(todayISO + 'T00:00:00').getTime();
+  if (end <= start) return 100;
+  return Math.max(0, Math.min(100, Math.round(((now - start) / (end - start)) * 100)));
+}
+
 /** progress% = done planned / total planned, per objetivo. Extras never count. */
 export function computeObjetivoProgress(objetivoId: ObjetivoId, atividades: Atividade[]): number {
   const planned = atividades.filter((a) => a.objetivoId === objetivoId && a.kind === 'planned');
