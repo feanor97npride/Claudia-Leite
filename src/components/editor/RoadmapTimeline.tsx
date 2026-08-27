@@ -360,15 +360,17 @@ export default function RoadmapTimeline({
   );
   // Indicator cards above the grid (mockup item 4) — a DIFFERENT universe
   // from eligibleRows/eligibleStatuses above: those need a full planned
-  // start+end to draw a bar in the grid, but a status is still meaningful
-  // without one, so an atividade with no prazo yet wouldn't otherwise be
-  // counted anywhere in these cards. Recomputed straight from the
-  // `atividades` prop on every render — editing a status anywhere updates
-  // these automatically, no separate cache to go stale.
+  // start+end to draw a bar in the grid, but a status or progress % is
+  // still meaningful without one, so an atividade with no prazo yet
+  // wouldn't otherwise be counted anywhere in these cards. Recomputed
+  // straight from the `atividades` prop on every render — editing a
+  // status or subtask % anywhere updates these automatically, no separate
+  // cache to go stale.
   const indicatorAtividades = objetivos.flatMap((objetivo) =>
     atividadesForObjetivo(objetivo.id, atividades).filter((a) => isVisibleInTimeline(a, currentWeekStart)),
   );
   const indicatorStatuses = indicatorAtividades.map((a) => timelineVisualStatus(a, today));
+  const indicatorProgressPercents = indicatorAtividades.map((a) => computeBarFillPercent(a, today));
 
   const responsavelOptions = Array.from(
     new Set(
@@ -504,7 +506,7 @@ export default function RoadmapTimeline({
         </div>
       </div>
       {indicatorStatuses.length > 0 && (
-        <TimelineStatCards statuses={indicatorStatuses} />
+        <TimelineStatCards statuses={indicatorStatuses} progressPercents={indicatorProgressPercents} />
       )}
       {eligibleRows.length === 0 && manualEligibleRows.length === 0 && backlogEligibleRows.length === 0 ? (
         <p className="text-xs text-slate-400 italic">
