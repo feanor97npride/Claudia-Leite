@@ -113,6 +113,9 @@ export default function HoverPreviewCard({ atividade, objetivo, anchorRect, onMo
           {formatShortDate(atividade.plannedStart)} — {formatShortDate(atividade.plannedEnd)}
         </p>
       )}
+      {status === 'done' && atividade.completedAt && (
+        <p className="text-emerald-700 font-medium mb-1">Concluída em {formatShortDate(atividade.completedAt)}</p>
+      )}
       {(atividade.raciAccountableName?.trim() || atividade.raciResponsibleName?.trim()) && (
         <p className="text-slate-500 mb-1">
           {atividade.raciAccountableName?.trim() && <>Resp.: {atividade.raciAccountableName}</>}
