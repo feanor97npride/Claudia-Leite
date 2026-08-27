@@ -21,6 +21,7 @@ import ActivityDetailPanel from './ActivityDetailPanel';
 import NewActivityModal from './NewActivityModal';
 import HoverPreviewCard from './HoverPreviewCard';
 import TimelineStatCards from './TimelineStatCards';
+import PlanejadoRealizadoCard from './PlanejadoRealizadoCard';
 
 /** Header ruler navy tones (mockup's palette) — kept local to the Timeline
  *  since nothing else in the app uses this dark navbar-style scheme. */
@@ -371,6 +372,19 @@ export default function RoadmapTimeline({
   );
   const indicatorStatuses = indicatorAtividades.map((a) => timelineVisualStatus(a, today));
   const indicatorProgressPercents = indicatorAtividades.map((a) => computeBarFillPercent(a, today));
+  // "Planejado vs. realizado" card: realizado = concluídas/total (same
+  // number as the "Concluídas" stat card); planejado = the average of
+  // indicatorProgressPercents (same formula as "Progresso Geral" above) —
+  // i.e. how much of the roadmap SHOULD be done today per each atividade's
+  // own schedule, vs. how much actually is.
+  const realizadoPct =
+    indicatorStatuses.length === 0
+      ? 0
+      : Math.round((indicatorStatuses.filter((s) => s === 'done').length / indicatorStatuses.length) * 100);
+  const planejadoPct =
+    indicatorProgressPercents.length === 0
+      ? 0
+      : Math.round(indicatorProgressPercents.reduce((sum, p) => sum + p, 0) / indicatorProgressPercents.length);
 
   const responsavelOptions = Array.from(
     new Set(
@@ -506,7 +520,10 @@ export default function RoadmapTimeline({
         </div>
       </div>
       {indicatorStatuses.length > 0 && (
-        <TimelineStatCards statuses={indicatorStatuses} progressPercents={indicatorProgressPercents} />
+        <>
+          <TimelineStatCards statuses={indicatorStatuses} progressPercents={indicatorProgressPercents} />
+          <PlanejadoRealizadoCard planejadoPct={planejadoPct} realizadoPct={realizadoPct} />
+        </>
       )}
       {eligibleRows.length === 0 && manualEligibleRows.length === 0 && backlogEligibleRows.length === 0 ? (
         <p className="text-xs text-slate-400 italic">
