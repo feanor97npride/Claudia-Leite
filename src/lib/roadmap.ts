@@ -198,36 +198,48 @@ export function buildRoadmapSnapshot(atividades: Atividade[], weekStart: string,
 
 /**
  * Compliance metric: how many consecutive weeks (walking backward from
- * referenceWeekStart) had 100% of their completed PLANNED atividades
- * finished on time or early (computeAheadBehindPercent >= 0 — negative means
- * late). Only planned atividades count, same rule as the other governance
- * calculations above (extras were never part of the governed plan).
- *
- * A week with zero planned atividades completed (no data either way) is
- * skipped — it neither extends nor breaks the streak — so a quiet week
- * doesn't wrongly reset an otherwise-perfect run. Scanning stops (streak
- * capped at 0 for that walk) at the first week that DOES have completed
- * planned atividades and at least one was late. `maxLookbackWeeks` bounds
- * the walk so a mostly-empty history doesn't scan back indefinitely.
+ * referenceWeekStart) had 100% "on prazo" work, from BOTH sources the rest
+ * of the hero band sums (see computeWeeklyCompletedCounts) — not atividades
+ * alone, since the badge's own copy ("...com entregas 100% no prazo") talks
+ * about entregas too:
+ *   - PLANNED atividades completed that week: on time/early when
+ *     computeAheadBehindPercent >= 0 (negative means late).
+ *   - Entregas (that week's report.projects, matched by exact weekStart):
+ *     on time when status === 'on_track' — 'attention'/'delayed' break it.
+ * A week both were silent on (no completed planned atividades with date
+ * data AND no report for that weekStart) is skipped — it neither extends
+ * nor breaks the streak, so a quiet week doesn't wrongly reset an otherwise-
+ * perfect run. Scanning stops at the first week that DOES have data on
+ * either side and fails it. `maxLookbackWeeks` bounds the walk so a mostly-
+ * empty history doesn't scan back indefinitely.
  */
-export function computeOnTimeStreak(atividades: Atividade[], referenceWeekStart: string, maxLookbackWeeks = 52): number {
+export function computeOnTimeStreak(
+  atividades: Atividade[],
+  reports: Report[],
+  referenceWeekStart: string,
+  maxLookbackWeeks = 52,
+): number {
   let streak = 0;
   let weekStart = referenceWeekStart;
   let emptyWeeksInARow = 0;
   for (let i = 0; i < maxLookbackWeeks; i++) {
-    const withData = atividades
+    const atividadesWithData = atividades
       .filter((a) => a.kind === 'planned' && a.status === 'done' && a.completedAt && isWithinWeek(a.completedAt, weekStart))
       .map(computeAheadBehindPercent)
       .filter((v): v is number => v !== null);
+    const weekEntregas = reports.filter((r) => r.weekStart === weekStart).flatMap((r) => r.projects);
 
-    if (withData.length === 0) {
+    if (atividadesWithData.length === 0 && weekEntregas.length === 0) {
       emptyWeeksInARow += 1;
       if (emptyWeeksInARow >= 8) break;
       weekStart = previousWeekStartISO(weekStart);
       continue;
     }
 
-    if (!withData.every((v) => v >= 0)) break;
+    const atividadesOnTime = atividadesWithData.every((v) => v >= 0);
+    const entregasOnTime = weekEntregas.every((p) => p.status === 'on_track');
+    if (!atividadesOnTime || !entregasOnTime) break;
+
     streak += 1;
     emptyWeeksInARow = 0;
     weekStart = previousWeekStartISO(weekStart);

@@ -410,7 +410,7 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report, reports, ativi
   const totalEntregasCount = reports.reduce((sum, r) => sum + r.projects.length, 0);
   const totalCompletedCount = totalAtividadesCount + totalEntregasCount;
 
-  const onTimeStreakWeeks = computeOnTimeStreak(atividades, report.weekStart);
+  const onTimeStreakWeeks = computeOnTimeStreak(atividades, reports, report.weekStart);
 
   const roadmapOverallProgress = Math.round(
     roadmapData.reduce((sum, s) => sum + s.progress, 0) / Math.max(roadmapData.length, 1),
