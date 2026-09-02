@@ -23,6 +23,7 @@ interface Draft {
   responsavel: string;
   descricao: string;
   subtasks: Subtask[];
+  progresso: number;
 }
 
 function draftFrom(a: Atividade): Draft {
@@ -31,6 +32,7 @@ function draftFrom(a: Atividade): Draft {
     responsavel: a.raciAccountableName ?? '',
     descricao: a.note ?? '',
     subtasks: a.subtasks,
+    progresso: a.progresso,
   };
 }
 
@@ -88,6 +90,7 @@ export default function ActivityDetailPanel({ atividade, objetivo, readOnly, onC
     draft.status !== atividade.status ||
     draft.responsavel !== (atividade.raciAccountableName ?? '') ||
     draft.descricao !== (atividade.note ?? '') ||
+    draft.progresso !== atividade.progresso ||
     JSON.stringify(draft.subtasks) !== JSON.stringify(atividade.subtasks);
 
   function updateSubtask(id: string, percent: number) {
@@ -112,6 +115,7 @@ export default function ActivityDetailPanel({ atividade, objetivo, readOnly, onC
         raciAccountableName: draft.responsavel.trim() ? draft.responsavel.trim() : null,
         note: draft.descricao.trim() ? draft.descricao : null,
         subtasks: draft.subtasks,
+        progresso: draft.progresso,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível salvar as alterações.');
@@ -214,7 +218,16 @@ export default function ActivityDetailPanel({ atividade, objetivo, readOnly, onC
                 <select
                   value={draft.status}
                   disabled={readOnly}
-                  onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as ActivityStatus }))}
+                  onChange={(e) => {
+                    const newStatus = e.target.value as ActivityStatus;
+                    setDraft((d) => {
+                      let newProgresso = d.progresso;
+                      if (newStatus === 'done') {
+                        newProgresso = 100;
+                      }
+                      return { ...d, status: newStatus, progresso: newProgresso };
+                    });
+                  }}
                   className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-2 outline-none bg-white disabled:bg-slate-50 disabled:text-slate-400"
                 >
                   {(Object.keys(ACTIVITY_STATUS_META) as ActivityStatus[]).map((s) => (
@@ -228,6 +241,54 @@ export default function ActivityDetailPanel({ atividade, objetivo, readOnly, onC
                     Exibida como "Atrasado" na Timeline — prazo final já passou sem estar concluída.
                   </p>
                 )}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs text-slate-400">Progresso (%)</label>
+                  <span className="text-sm font-semibold text-slate-700">{draft.progresso}%</span>
+                </div>
+                {draft.status === 'done' ? (
+                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden mb-2">
+                    <div className="h-full rounded-full bg-emerald-500" style={{ width: '100%' }} />
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2 mb-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={draft.progresso}
+                        disabled={readOnly || draft.status !== 'in_progress'}
+                        onChange={(e) => {
+                          const val = Math.max(0, Math.min(100, Number(e.target.value)));
+                          setDraft((d) => ({ ...d, progresso: val }));
+                        }}
+                        className="w-16 text-sm border border-slate-200 rounded-lg px-2.5 py-2 outline-none focus:border-indigo-400 disabled:bg-slate-50 disabled:text-slate-400"
+                      />
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={draft.progresso}
+                        disabled={readOnly || draft.status !== 'in_progress'}
+                        onChange={(e) => setDraft((d) => ({ ...d, progresso: Number(e.target.value) }))}
+                        className="flex-1 accent-indigo-500 disabled:opacity-50"
+                      />
+                    </div>
+                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${draft.progresso}%`, backgroundColor: statusMeta.bg }} />
+                    </div>
+                  </>
+                )}
+                <p className="text-[11px] text-slate-400 mt-1">
+                  {draft.status === 'done'
+                    ? 'Progresso travado em 100% para atividades concluídas.'
+                    : draft.status === 'in_progress'
+                      ? 'Edite o progresso enquanto a atividade estiver em andamento.'
+                      : 'Progresso inicia em 0% para atividades planejadas.'}
+                </p>
               </div>
 
               <div>

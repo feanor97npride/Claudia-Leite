@@ -25,6 +25,7 @@ export default withErrorHandling(async (req: IncomingMessage, res: ServerRespons
       subtasks: body.subtasks as SubtaskRow[] | undefined,
       colorOverride: body.colorOverride as string | null | undefined,
       objetivoId: body.objetivoId as string | undefined,
+      progresso: body.progresso as number | undefined,
       reason: body.reason as string | undefined,
     });
     sendJson(res, 200, { atividade: updated });

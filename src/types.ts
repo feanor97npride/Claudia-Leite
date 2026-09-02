@@ -159,6 +159,9 @@ export interface Atividade {
    *  for an atividade that visually bridges two Objetivos. undefined =
    *  use the Objetivo's color, the default for every atividade. */
   colorOverride?: string;
+  /** Progress percentage (0-100). Auto-sync: done=100%, planned/others=0%.
+   *  Only editable when status=in_progress (1-99%). */
+  progresso: number;
 }
 
 /** Partial update sent to PATCH /api/atividades/:id — nullable fields clear
@@ -179,6 +182,9 @@ export interface AtividadePatch {
    *  other field (Bloco 1.1); the app's progress/timeline calcs need no
    *  special-casing since they simply filter atividades by objetivoId. */
   objetivoId?: ObjetivoId;
+  /** Progress percentage (0-100), only editable when status=in_progress.
+   *  Auto-sync: transitioning to 'done' forces to 100%. */
+  progresso?: number;
   reason?: string;
 }
 

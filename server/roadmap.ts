@@ -40,6 +40,8 @@ export interface AtividadeRow {
   weekStart: string | null;
   subtasks: SubtaskRow[];
   colorOverride: string | null;
+  /** Progress percentage (0-100). Auto-sync: done=100%, others default to 0%. */
+  progresso: number;
 }
 
 function mapObjetivo(r: {
@@ -77,6 +79,7 @@ function mapAtividade(r: {
   week_start: string | null;
   subtasks: SubtaskRow[] | null;
   color_override: string | null;
+  progresso: number;
 }): AtividadeRow {
   return {
     id: r.id,
@@ -93,6 +96,7 @@ function mapAtividade(r: {
     weekStart: r.week_start,
     subtasks: r.subtasks ?? [],
     colorOverride: r.color_override,
+    progresso: r.progresso,
   };
 }
 
@@ -263,6 +267,7 @@ export async function updateAtividade(
     subtasks?: SubtaskRow[];
     colorOverride?: string | null;
     objetivoId?: string;
+    progresso?: number;
     reason?: string;
   },
 ): Promise<AtividadeRow> {
@@ -277,11 +282,29 @@ export async function updateAtividade(
     if (!objRows[0]) throw new HttpError(404, 'Objetivo de destino não encontrado.');
   }
 
+  const baseStatus = patch.status !== undefined ? patch.status : current.status;
+  let baseProgresso = patch.progresso !== undefined ? patch.progresso : current.progresso;
+
+  if (baseProgresso < 0 || baseProgresso > 100) {
+    throw new HttpError(400, 'O progresso deve estar entre 0 e 100.');
+  }
+
+  // Auto-sync: if transitioning to 'done', force progresso to 100
+  if (baseStatus === 'done' && patch.status !== undefined && patch.status === 'done') {
+    baseProgresso = 100;
+  }
+  // If transitioning away from 'done', keep existing progresso unless explicitly changed
+  if (baseStatus !== 'done' && current.status === 'done' && patch.status !== undefined && patch.status !== 'done') {
+    if (patch.progresso === undefined) {
+      baseProgresso = 0;
+    }
+  }
+
   const next: AtividadeRow = {
     ...current,
     name: patch.name !== undefined ? patch.name.trim() : current.name,
     note: patch.note !== undefined ? patch.note : current.note,
-    status: patch.status !== undefined ? patch.status : current.status,
+    status: baseStatus,
     completedAt: patch.completedAt !== undefined ? patch.completedAt : current.completedAt,
     plannedStart: patch.plannedStart !== undefined ? patch.plannedStart : current.plannedStart,
     plannedEnd: patch.plannedEnd !== undefined ? patch.plannedEnd : current.plannedEnd,
@@ -290,6 +313,7 @@ export async function updateAtividade(
     subtasks: patch.subtasks !== undefined ? patch.subtasks : current.subtasks,
     colorOverride: patch.colorOverride !== undefined ? patch.colorOverride : current.colorOverride,
     objetivoId: patch.objetivoId !== undefined ? patch.objetivoId : current.objetivoId,
+    progresso: baseProgresso,
   };
 
   if (!next.name) throw new HttpError(400, 'O nome da atividade não pode ficar vazio.');
@@ -316,8 +340,8 @@ export async function updateAtividade(
   await pool.query(
     `UPDATE atividades SET name = $1, note = $2, status = $3, completed_at = $4, planned_start = $5,
        planned_end = $6, raci_accountable_name = $7, raci_responsible_name = $8, objetivo_id = $9,
-       subtasks = $10, color_override = $11, updated_at = now()
-     WHERE id = $12`,
+       subtasks = $10, color_override = $11, progresso = $12, updated_at = now()
+     WHERE id = $13`,
     [
       next.name,
       next.note,
@@ -330,6 +354,7 @@ export async function updateAtividade(
       next.objetivoId,
       JSON.stringify(next.subtasks),
       next.colorOverride,
+      next.progresso,
       id,
     ],
   );
@@ -345,6 +370,7 @@ export async function updateAtividade(
     ['raciResponsibleName', current.raciResponsibleName, next.raciResponsibleName],
     ['colorOverride', current.colorOverride, next.colorOverride],
     ['objetivoId', current.objetivoId, next.objetivoId],
+    ['progresso', current.progresso.toString(), next.progresso.toString()],
   ];
   if (JSON.stringify(current.subtasks) !== JSON.stringify(next.subtasks)) {
     await recordAudit({
