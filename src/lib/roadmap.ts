@@ -6,8 +6,11 @@ import { currentWeekOfObjetivo, isWithinWeek, previousWeekStartISO } from '../ut
 // backend the first time they're requested. This module keeps only the
 // pure, presentation-side calculations shared by the editor and snapshot.
 
+/** Sorted by sortOrder (Timeline drag-and-drop position) — the single
+ *  source of truth for display order, shared by every screen (Timeline,
+ *  Editor) so a reorder made in one shows up consistently in the other. */
 export function atividadesForObjetivo(objetivoId: ObjetivoId, atividades: Atividade[]): Atividade[] {
-  return atividades.filter((a) => a.objetivoId === objetivoId);
+  return atividades.filter((a) => a.objetivoId === objetivoId).sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 /**

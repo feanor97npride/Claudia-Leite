@@ -26,6 +26,7 @@ export default withErrorHandling(async (req: IncomingMessage, res: ServerRespons
       colorOverride: body.colorOverride as string | null | undefined,
       objetivoId: body.objetivoId as string | undefined,
       progresso: body.progresso as number | undefined,
+      sortOrder: body.sortOrder as number | undefined,
       reason: body.reason as string | undefined,
     });
     sendJson(res, 200, { atividade: updated });

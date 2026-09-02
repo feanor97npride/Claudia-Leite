@@ -133,6 +133,12 @@ export default function RoadmapTimeline({
   const [showNewActivity, setShowNewActivity] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string; kind: 'planned' | 'extra' } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  // Drag-and-drop reordering (name-cell drag handle, within one objetivo
+  // group): draggedId is the atividade being dragged; dropTarget tracks
+  // which row it's currently hovering and whether it would land before or
+  // after that row, purely for the insertion-line visual feedback.
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ id: string; position: 'before' | 'after' } | null>(null);
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -341,6 +347,36 @@ export default function RoadmapTimeline({
       setDeleteConfirm(null);
     } finally {
       setIsDeleting(false);
+    }
+  }
+
+  /**
+   * Repositions `draggedAtividadeId` immediately before/after `targetId`
+   * within their shared objetivo group. Computes the new sortOrder as the
+   * midpoint between its two new neighbors (fractional — see
+   * migrations/008) so only the dragged row's own value changes; every
+   * other atividade in the group, including ones hidden by an active
+   * filter, keeps its sortOrder untouched.
+   */
+  async function handleReorderAtividade(
+    objetivoId: ObjetivoId,
+    draggedAtividadeId: string,
+    targetId: string,
+    position: 'before' | 'after',
+  ) {
+    if (draggedAtividadeId === targetId) return;
+    const groupOrder = atividadesForObjetivo(objetivoId, atividades).filter((a) => a.id !== draggedAtividadeId);
+    const targetIdx = groupOrder.findIndex((a) => a.id === targetId);
+    if (targetIdx === -1) return;
+    const insertIdx = position === 'before' ? targetIdx : targetIdx + 1;
+    const prev = groupOrder[insertIdx - 1];
+    const next = groupOrder[insertIdx];
+    const prevOrder = prev ? prev.sortOrder : next ? next.sortOrder - 2000 : 0;
+    const nextOrder = next ? next.sortOrder : prev ? prev.sortOrder + 2000 : 2000;
+    try {
+      await onUpdateAtividade(draggedAtividadeId, { sortOrder: (prevOrder + nextOrder) / 2 });
+    } catch (error) {
+      console.error('Erro ao reordenar atividade:', error);
     }
   }
 
@@ -860,6 +896,8 @@ export default function RoadmapTimeline({
                     };
                     const handleMouseEnter = (e: React.MouseEvent<HTMLElement>) =>
                       scheduleShow(atividade, group.objetivo, e.currentTarget);
+                    const isDropBefore = dropTarget?.id === atividade.id && dropTarget.position === 'before';
+                    const isDropAfter = dropTarget?.id === atividade.id && dropTarget.position === 'after';
                     return (
                       <div key={atividade.id} className="contents">
                         <div
@@ -867,7 +905,26 @@ export default function RoadmapTimeline({
                           onClick={handleClick}
                           onMouseEnter={handleMouseEnter}
                           onMouseLeave={scheduleHide}
-                          className={`sticky left-0 z-[15] shadow-[3px_0_6px_-2px_rgba(0,0,0,0.12)] border-b border-slate-100 px-2 py-2.5 cursor-pointer hover:bg-slate-100 flex items-center gap-1.5 min-w-0 transition-colors duration-200 ease-out group ${
+                          onDragOver={(e) => {
+                            if (!draggedId || draggedId === atividade.id) return;
+                            e.preventDefault();
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const position = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+                            setDropTarget((cur) => (cur?.id === atividade.id && cur.position === position ? cur : { id: atividade.id, position }));
+                          }}
+                          onDragLeave={(e) => {
+                            const related = e.relatedTarget as Node | null;
+                            if (related && e.currentTarget.contains(related)) return;
+                            setDropTarget((cur) => (cur?.id === atividade.id ? null : cur));
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (!draggedId || !dropTarget || dropTarget.id !== atividade.id) return;
+                            void handleReorderAtividade(group.objetivo.id, draggedId, atividade.id, dropTarget.position);
+                            setDraggedId(null);
+                            setDropTarget(null);
+                          }}
+                          className={`relative sticky left-0 z-[15] shadow-[3px_0_6px_-2px_rgba(0,0,0,0.12)] border-b border-slate-100 px-2 py-2.5 cursor-pointer hover:bg-slate-100 flex items-center gap-1.5 min-w-0 transition-colors duration-200 ease-out group ${
                             zebra ? 'bg-slate-50' : 'bg-white'
                           } ${
                             isDone
@@ -875,9 +932,38 @@ export default function RoadmapTimeline({
                               : status === 'atrasado'
                                 ? 'text-red-700 font-medium'
                                 : 'text-slate-500'
-                          }`}
+                          } ${draggedId === atividade.id ? 'opacity-40' : ''}`}
                           title={`${group.objetivo.entregaLabel} — ${atividade.name} (${statusMeta.label}) — clique para detalhes`}
                         >
+                          {(isDropBefore || isDropAfter) && (
+                            <div
+                              aria-hidden="true"
+                              className="absolute left-0 right-0 h-0.5 bg-indigo-500 pointer-events-none z-20"
+                              style={isDropBefore ? { top: -1 } : { bottom: -1 }}
+                            />
+                          )}
+                          {!readOnly && (
+                            <span
+                              draggable
+                              onDragStart={(e) => {
+                                e.stopPropagation();
+                                e.dataTransfer.effectAllowed = 'move';
+                                clearTimers();
+                                setPreview(null);
+                                setDraggedId(atividade.id);
+                              }}
+                              onDragEnd={() => {
+                                setDraggedId(null);
+                                setDropTarget(null);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              title="Arraste para reordenar"
+                              aria-label="Arraste para reordenar"
+                              className="shrink-0 cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200 leading-none"
+                            >
+                              ⠿
+                            </span>
+                          )}
                           <span
                             aria-hidden="true"
                             className="w-2 h-2 rounded-full shrink-0"

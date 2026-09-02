@@ -162,6 +162,10 @@ export interface Atividade {
   /** Progress percentage (0-100). Auto-sync: done=100%, planned/others=0%.
    *  Only editable when status=in_progress (1-99%). */
   progresso: number;
+  /** Display order within its objetivo's Timeline group — lower sorts
+   *  first. Set by drag-and-drop reordering in the Roadmap Timeline;
+   *  purely presentational, never audit-logged. */
+  sortOrder: number;
 }
 
 /** Partial update sent to PATCH /api/atividades/:id — nullable fields clear
@@ -185,6 +189,8 @@ export interface AtividadePatch {
   /** Progress percentage (0-100), only editable when status=in_progress.
    *  Auto-sync: transitioning to 'done' forces to 100%. */
   progresso?: number;
+  /** Drag-and-drop reposition within the Timeline — see Atividade.sortOrder. */
+  sortOrder?: number;
   reason?: string;
 }
 

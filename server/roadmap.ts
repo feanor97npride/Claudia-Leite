@@ -42,6 +42,11 @@ export interface AtividadeRow {
   colorOverride: string | null;
   /** Progress percentage (0-100). Auto-sync: done=100%, others default to 0%. */
   progresso: number;
+  /** Display order within its objetivo's Timeline group — lower sorts
+   *  first. Fractional (not just integer) so a drag-and-drop reorder can
+   *  set it to the midpoint between two neighbors without renumbering the
+   *  rest of the group. Purely presentational — never audit-logged. */
+  sortOrder: number;
 }
 
 function mapObjetivo(r: {
@@ -80,6 +85,7 @@ function mapAtividade(r: {
   subtasks: SubtaskRow[] | null;
   color_override: string | null;
   progresso: number;
+  sort_order: number;
 }): AtividadeRow {
   return {
     id: r.id,
@@ -97,6 +103,7 @@ function mapAtividade(r: {
     subtasks: r.subtasks ?? [],
     colorOverride: r.color_override,
     progresso: r.progresso,
+    sortOrder: r.sort_order,
   };
 }
 
@@ -111,10 +118,10 @@ export async function seedRoadmapIfNeeded(): Promise<void> {
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [obj.id, obj.name, obj.entregaLabel, obj.periodStart, obj.periodEnd, obj.periodLabel, obj.totalWeeks],
     );
-    for (const name of SEED_ATIVIDADES[obj.id]) {
+    for (const [index, name] of SEED_ATIVIDADES[obj.id].entries()) {
       await pool.query(
-        `INSERT INTO atividades (objetivo_id, name, status, kind) VALUES ($1, $2, 'planned', 'planned')`,
-        [obj.id, name],
+        `INSERT INTO atividades (objetivo_id, name, status, kind, sort_order) VALUES ($1, $2, 'planned', 'planned', $3)`,
+        [obj.id, name, index * 1000],
       );
     }
   }
@@ -126,7 +133,7 @@ export async function listObjetivos(): Promise<ObjetivoRow[]> {
 }
 
 export async function listAtividades(): Promise<AtividadeRow[]> {
-  const { rows } = await pool.query('SELECT * FROM atividades ORDER BY created_at ASC');
+  const { rows } = await pool.query('SELECT * FROM atividades ORDER BY sort_order ASC, created_at ASC');
   return rows.map(mapAtividade);
 }
 
@@ -211,10 +218,19 @@ export async function createExtraAtividade(
     throw new HttpError(400, 'A data de início planejada deve ser anterior à data de fim planejada.');
   }
 
+  // New atividades join at the end of their objetivo's Timeline order —
+  // same 1000-wide gap convention as the seed/migration data, leaving room
+  // for fractional drag-and-drop inserts later.
+  const { rows: maxOrderRows } = await pool.query<{ max: number | null }>(
+    'SELECT MAX(sort_order) AS max FROM atividades WHERE objetivo_id = $1',
+    [objetivoId],
+  );
+  const sortOrder = (maxOrderRows[0]?.max ?? -1000) + 1000;
+
   const { rows } = await pool.query(
-    `INSERT INTO atividades (objetivo_id, name, status, kind, week_start, planned_start, planned_end)
-     VALUES ($1, $2, 'planned', 'extra', $3, $4, $5) RETURNING *`,
-    [objetivoId, name, weekStart, plannedStart, plannedEnd],
+    `INSERT INTO atividades (objetivo_id, name, status, kind, week_start, planned_start, planned_end, sort_order)
+     VALUES ($1, $2, 'planned', 'extra', $3, $4, $5, $6) RETURNING *`,
+    [objetivoId, name, weekStart, plannedStart, plannedEnd, sortOrder],
   );
   const created = mapAtividade(rows[0]);
   await recordAudit({
@@ -268,6 +284,9 @@ export async function updateAtividade(
     colorOverride?: string | null;
     objetivoId?: string;
     progresso?: number;
+    /** Drag-and-drop reposition within the Timeline — purely presentational,
+     *  never audit-logged (see fieldPairs below). */
+    sortOrder?: number;
     reason?: string;
   },
 ): Promise<AtividadeRow> {
@@ -314,6 +333,7 @@ export async function updateAtividade(
     colorOverride: patch.colorOverride !== undefined ? patch.colorOverride : current.colorOverride,
     objetivoId: patch.objetivoId !== undefined ? patch.objetivoId : current.objetivoId,
     progresso: baseProgresso,
+    sortOrder: patch.sortOrder !== undefined ? patch.sortOrder : current.sortOrder,
   };
 
   if (!next.name) throw new HttpError(400, 'O nome da atividade não pode ficar vazio.');
@@ -340,8 +360,8 @@ export async function updateAtividade(
   await pool.query(
     `UPDATE atividades SET name = $1, note = $2, status = $3, completed_at = $4, planned_start = $5,
        planned_end = $6, raci_accountable_name = $7, raci_responsible_name = $8, objetivo_id = $9,
-       subtasks = $10, color_override = $11, progresso = $12, updated_at = now()
-     WHERE id = $13`,
+       subtasks = $10, color_override = $11, progresso = $12, sort_order = $13, updated_at = now()
+     WHERE id = $14`,
     [
       next.name,
       next.note,
@@ -355,6 +375,7 @@ export async function updateAtividade(
       JSON.stringify(next.subtasks),
       next.colorOverride,
       next.progresso,
+      next.sortOrder,
       id,
     ],
   );
