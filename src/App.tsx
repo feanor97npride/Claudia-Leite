@@ -461,6 +461,7 @@ export default function App() {
                 onEditAtividade={handleEditAtividadeFromTimeline}
                 onUpdateAtividade={handleUpdateAtividade}
                 onCreateAtividade={handleAddExtraAtividade}
+                onDeleteAtividade={handleRemoveExtraAtividade}
               />
             ))}
 

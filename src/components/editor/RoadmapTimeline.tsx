@@ -21,6 +21,7 @@ import ActivityDetailPanel from './ActivityDetailPanel';
 import NewActivityModal from './NewActivityModal';
 import HoverPreviewCard from './HoverPreviewCard';
 import TimelineStatCards from './TimelineStatCards';
+import ConfirmDialog from '../ConfirmDialog';
 
 /** Header ruler navy tones (mockup's palette) — kept local to the Timeline
  *  since nothing else in the app uses this dark navbar-style scheme. */
@@ -72,6 +73,8 @@ interface Props {
   /** "+ Nova Atividade" (mockup navbar) — reuses the same create-extra flow
    *  already used by the Editor, just with the planned dates set up front. */
   onCreateAtividade: (objetivoId: ObjetivoId, name: string, plannedStart: string, plannedEnd: string) => Promise<Atividade>;
+  /** Delete an extra atividade (only extras can be deleted). */
+  onDeleteAtividade?: (id: string) => Promise<void>;
 }
 
 /** Not a real ObjetivoId — a manual color token for the synthetic
@@ -107,6 +110,7 @@ export default function RoadmapTimeline({
   onEditAtividade,
   onUpdateAtividade,
   onCreateAtividade,
+  onDeleteAtividade,
 }: Props) {
   const containerRef = useRef<HTMLElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -126,6 +130,8 @@ export default function RoadmapTimeline({
   const [statusFilter, setStatusFilter] = useState<Set<TimelineVisualStatus>>(new Set());
   const [responsavelFilter, setResponsavelFilter] = useState<Set<string>>(new Set());
   const [showNewActivity, setShowNewActivity] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -319,6 +325,21 @@ export default function RoadmapTimeline({
       await document.exitFullscreen();
     } else {
       await containerRef.current.requestFullscreen();
+    }
+  }
+
+  async function handleDeleteAtividade() {
+    if (!deleteConfirm || !onDeleteAtividade) return;
+    try {
+      setIsDeleting(true);
+      await onDeleteAtividade(deleteConfirm.id);
+      setDeleteConfirm(null);
+    } catch (error) {
+      console.error('Erro ao deletar atividade:', error);
+      // Error already shown by parent; just close the dialog
+      setDeleteConfirm(null);
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -844,7 +865,7 @@ export default function RoadmapTimeline({
                           onClick={handleClick}
                           onMouseEnter={handleMouseEnter}
                           onMouseLeave={scheduleHide}
-                          className={`sticky left-0 z-[15] shadow-[3px_0_6px_-2px_rgba(0,0,0,0.12)] border-b border-slate-100 px-2 py-2.5 cursor-pointer hover:bg-slate-100 flex items-center gap-1.5 min-w-0 transition-colors duration-200 ease-out ${
+                          className={`sticky left-0 z-[15] shadow-[3px_0_6px_-2px_rgba(0,0,0,0.12)] border-b border-slate-100 px-2 py-2.5 cursor-pointer hover:bg-slate-100 flex items-center gap-1.5 min-w-0 transition-colors duration-200 ease-out group ${
                             zebra ? 'bg-slate-50' : 'bg-white'
                           } ${
                             isDone
@@ -878,6 +899,26 @@ export default function RoadmapTimeline({
                             <span className="text-[8px] font-bold uppercase tracking-wide bg-purple-100 text-purple-700 rounded px-1 py-0.5 shrink-0">
                               Extra
                             </span>
+                          )}
+                          {!readOnly && atividade.kind === 'extra' && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteConfirm({ id: atividade.id, name: atividade.name });
+                              }}
+                              title="Remover atividade"
+                              className="shrink-0 text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all duration-200 p-1"
+                            >
+                              <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
                           )}
                         </div>
                         {before > 0 && (
@@ -1209,6 +1250,15 @@ export default function RoadmapTimeline({
             await onCreateAtividade(objetivoId, name, plannedStart, plannedEnd);
             setShowNewActivity(false);
           }}
+        />
+      )}
+      {deleteConfirm && (
+        <ConfirmDialog
+          title="Remover atividade extra?"
+          message={`Tem certeza que deseja remover "${deleteConfirm.name}"? Esta ação não pode ser desfeita.`}
+          confirmLabel={isDeleting ? 'Removendo…' : 'Remover'}
+          onConfirm={handleDeleteAtividade}
+          onCancel={() => setDeleteConfirm(null)}
         />
       )}
     </section>
