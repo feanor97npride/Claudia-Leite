@@ -329,7 +329,7 @@ export default function RoadmapTimeline({
   }
 
   async function handleDeleteAtividade() {
-    if (!deleteConfirm || !onDeleteAtividade) return;
+    if (!deleteConfirm || !onDeleteAtividade || isDeleting) return;
     try {
       setIsDeleting(true);
       await onDeleteAtividade(deleteConfirm.id);
