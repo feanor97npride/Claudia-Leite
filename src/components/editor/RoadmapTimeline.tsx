@@ -21,6 +21,7 @@ import ActivityDetailPanel from './ActivityDetailPanel';
 import NewActivityModal from './NewActivityModal';
 import HoverPreviewCard from './HoverPreviewCard';
 import TimelineStatCards from './TimelineStatCards';
+import ExportMenu from './ExportMenu';
 import ConfirmDialog from '../ConfirmDialog';
 
 /** Header ruler navy tones (mockup's palette) — kept local to the Timeline
@@ -497,6 +498,7 @@ export default function RoadmapTimeline({
               + Nova Atividade
             </button>
           )}
+          <ExportMenu objetivos={objetivos} atividades={atividades} timelineRef={containerRef} />
           <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-red-500 text-white rounded-lg px-2.5 py-1.5">
             Hoje: {formatShortDate(today)}
           </span>
