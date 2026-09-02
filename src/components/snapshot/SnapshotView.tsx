@@ -23,6 +23,10 @@ import {
 
 interface Props {
   report: Report;
+  /** Full report history — used only to sum entregas (projects) across ALL
+   *  weeks for the hero's "concluídas desde o início do programa" figure;
+   *  everything else in this view still reads from the single `report`. */
+  reports: Report[];
   atividades: Atividade[];
   objetivos: Objetivo[];
   backlogItems: BacklogItem[];
@@ -165,14 +169,14 @@ function HeroStats({ weekCount, totalCount, streakWeeks }: { weekCount: number; 
       <div>
         <p className="text-4xl font-extrabold text-slate-900 leading-none">{weekCount}</p>
         <p className="text-[11px] font-semibold mt-1.5" style={{ color: INK_600 }}>
-          {weekCount === 1 ? 'atividade concluída' : 'atividades concluídas'} nesta semana
+          {weekCount === 1 ? 'entrega/atividade concluída' : 'entregas e atividades concluídas'} nesta semana
         </p>
       </div>
       <div className="w-px h-10 shrink-0" style={{ backgroundColor: LINE }} />
       <div>
         <p className="text-4xl font-extrabold text-slate-900 leading-none">{totalCount}</p>
         <p className="text-[11px] font-semibold mt-1.5" style={{ color: INK_600 }}>
-          concluídas desde o início do programa
+          entregas e atividades concluídas desde o início do programa
         </p>
       </div>
       {streakWeeks > 0 && (
@@ -363,7 +367,7 @@ function BacklogRow({ item, objetivos }: { item: BacklogItem; objetivos: Objetiv
   );
 }
 
-const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report, atividades, objetivos, backlogItems }, ref) => {
+const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report, reports, atividades, objetivos, backlogItems }, ref) => {
   const roadmapData: ObjetivoProgressSnapshot[] =
     report.roadmapSnapshot ?? buildRoadmapSnapshot(atividades, report.weekStart, objetivos);
   const generatedAt = new Intl.DateTimeFormat('pt-BR', {
@@ -392,10 +396,20 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report, atividades, ob
     { nao_iniciado: 0, em_andamento: 0, concluido: 0 } as Record<string, number>,
   );
 
-  const weekCompletedCount = atividades.filter(
+  // Compliance/volume hero figures: sum BOTH atividades concluídas
+  // (governed roadmap items) AND entregas (this week's report.projects) —
+  // neither one alone is "everything delivered" (an entrega can exist with
+  // no roadmap atividade behind it, e.g. ad-hoc work).
+  const weekAtividadesCount = atividades.filter(
     (a) => a.status === 'done' && a.completedAt && isWithinWeek(a.completedAt, report.weekStart),
   ).length;
-  const totalCompletedCount = atividades.filter((a) => a.status === 'done').length;
+  const weekEntregasCount = report.projects.length;
+  const weekCompletedCount = weekAtividadesCount + weekEntregasCount;
+
+  const totalAtividadesCount = atividades.filter((a) => a.status === 'done').length;
+  const totalEntregasCount = reports.reduce((sum, r) => sum + r.projects.length, 0);
+  const totalCompletedCount = totalAtividadesCount + totalEntregasCount;
+
   const onTimeStreakWeeks = computeOnTimeStreak(atividades, report.weekStart);
 
   const roadmapOverallProgress = Math.round(

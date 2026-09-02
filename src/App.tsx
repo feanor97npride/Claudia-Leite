@@ -280,8 +280,12 @@ export default function App() {
 
   // Snapshot sidebar's "últimas 6 semanas" chart — anchored to the real
   // current week (same "hoje" anchor the Roadmap Timeline uses), not the
-  // week of whichever report happens to be open in the Snapshot.
-  const weeklyActivityData = useMemo(() => computeWeeklyCompletedCounts(atividades, currentWeekStartISO()), [atividades]);
+  // week of whichever report happens to be open in the Snapshot. Volume
+  // combines atividades concluídas AND entregas (report.projects) per week.
+  const weeklyActivityData = useMemo(
+    () => computeWeeklyCompletedCounts(atividades, reports, currentWeekStartISO()),
+    [atividades, reports],
+  );
   const weeklyActivityTotal = useMemo(
     () => weeklyActivityData.reduce((sum, d) => sum + d.count, 0),
     [weeklyActivityData],
@@ -477,7 +481,14 @@ export default function App() {
 
           {view === 'snapshot' && draft && (
             <div className="overflow-x-auto pb-8">
-              <SnapshotView ref={snapshotRef} report={draft} atividades={atividades} objetivos={objetivos} backlogItems={backlogItems} />
+              <SnapshotView
+                ref={snapshotRef}
+                report={draft}
+                reports={reports}
+                atividades={atividades}
+                objetivos={objetivos}
+                backlogItems={backlogItems}
+              />
             </div>
           )}
         </div>

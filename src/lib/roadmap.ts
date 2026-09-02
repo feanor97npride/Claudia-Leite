@@ -1,4 +1,4 @@
-import type { Atividade, ActivityKind, Objetivo, ObjetivoId, RoadmapSnapshot, TimelineVisualStatus } from '../types';
+import type { Atividade, ActivityKind, Objetivo, ObjetivoId, Report, RoadmapSnapshot, TimelineVisualStatus } from '../types';
 import { currentWeekOfObjetivo, isWithinWeek, previousWeekStartISO } from '../utils/date';
 
 // Objetivo/Atividade are now server-authoritative (see /api/objetivos,
@@ -237,25 +237,39 @@ export function computeOnTimeStreak(atividades: Atividade[], referenceWeekStart:
 
 export interface WeeklyCompletedCount {
   weekStart: string;
+  atividadesCount: number;
+  entregasCount: number;
+  /** atividadesCount + entregasCount — the combined volume figure the
+   *  compliance/volume framing leads with. */
   count: number;
 }
 
 /**
- * Atividades (any kind) marked done with completedAt falling in each of the
- * `weeks` most recent weeks (oldest first), anchored to referenceWeekStart —
- * feeds the sidebar's "last 6 weeks" bar chart (Melhoria: Snapshot como
- * relatório de compliance/volume).
+ * Volume of work closed out in each of the `weeks` most recent weeks (oldest
+ * first), anchored to referenceWeekStart — feeds the sidebar's "last 6
+ * weeks" bar chart and the Snapshot hero band (Melhoria: Snapshot como
+ * relatório de compliance/volume). Combines TWO sources on purpose, not just
+ * governed roadmap atividades: `entregas` (Report.projects — the week's
+ * free-narrative deliveries, one report per week) count too, since they
+ * represent real completed work the atividades side alone doesn't capture
+ * (e.g. ad-hoc deliveries never tied to a roadmap atividade).
  */
 export function computeWeeklyCompletedCounts(
   atividades: Atividade[],
+  reports: Report[],
   referenceWeekStart: string,
   weeks = 6,
 ): WeeklyCompletedCount[] {
   const result: WeeklyCompletedCount[] = [];
   let weekStart = referenceWeekStart;
   for (let i = 0; i < weeks; i++) {
-    const count = atividades.filter((a) => a.status === 'done' && a.completedAt && isWithinWeek(a.completedAt, weekStart)).length;
-    result.unshift({ weekStart, count });
+    const atividadesCount = atividades.filter(
+      (a) => a.status === 'done' && a.completedAt && isWithinWeek(a.completedAt, weekStart),
+    ).length;
+    const entregasCount = reports
+      .filter((r) => r.weekStart === weekStart)
+      .reduce((sum, r) => sum + r.projects.length, 0);
+    result.unshift({ weekStart, atividadesCount, entregasCount, count: atividadesCount + entregasCount });
     weekStart = previousWeekStartISO(weekStart);
   }
   return result;
