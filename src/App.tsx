@@ -3,7 +3,7 @@ import type { Atividade, AtividadePatch, AuthedUser, BacklogItem, BacklogItemPat
 import { ROLE_META } from './types';
 import { getReports } from './lib/storage';
 import { blankReport, duplicateForNextWeek } from './lib/factory';
-import { buildRoadmapSnapshot } from './lib/roadmap';
+import { buildRoadmapSnapshot, computeWeeklyCompletedCounts } from './lib/roadmap';
 import { currentWeekStartISO, todayISO } from './utils/date';
 import {
   createBacklogItemApi,
@@ -29,6 +29,7 @@ import RoadmapTimeline, { type ManualTimelineItem } from './components/editor/Ro
 import type { FocusAtividade } from './components/editor/RoadmapEditor';
 import SnapshotView from './components/snapshot/SnapshotView';
 import HistoryPanel from './components/history/HistoryPanel';
+import WeeklyActivityChart from './components/history/WeeklyActivityChart';
 import BackToTopButton from './components/BackToTopButton';
 
 type View = 'editor' | 'timeline' | 'snapshot';
@@ -277,6 +278,15 @@ export default function App() {
     [reports],
   );
 
+  // Snapshot sidebar's "últimas 6 semanas" chart — anchored to the real
+  // current week (same "hoje" anchor the Roadmap Timeline uses), not the
+  // week of whichever report happens to be open in the Snapshot.
+  const weeklyActivityData = useMemo(() => computeWeeklyCompletedCounts(atividades, currentWeekStartISO()), [atividades]);
+  const weeklyActivityTotal = useMemo(
+    () => weeklyActivityData.reduce((sum, d) => sum + d.count, 0),
+    [weeklyActivityData],
+  );
+
   if (authLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-100 text-sm text-slate-400">Carregando…</div>;
   }
@@ -473,6 +483,11 @@ export default function App() {
         </div>
 
         <aside className="no-print xl:sticky xl:top-6">
+          {view === 'snapshot' && (
+            <div className="mb-4">
+              <WeeklyActivityChart data={weeklyActivityData} totalCount={weeklyActivityTotal} />
+            </div>
+          )}
           <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
             Histórico de relatórios
           </h2>
@@ -484,6 +499,8 @@ export default function App() {
             <HistoryPanel
               reports={reports}
               activeReportId={draft?.id ?? null}
+              atividades={atividades}
+              objetivos={objetivos}
               onView={handleViewReport}
               onDuplicate={(r) => void handleDuplicateReport(r)}
               onDelete={(r) => void handleDeleteReport(r)}

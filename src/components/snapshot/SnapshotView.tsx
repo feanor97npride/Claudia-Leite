@@ -2,7 +2,8 @@ import { forwardRef } from 'react';
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import type { Atividade, BacklogItem, Objetivo, ObjetivoProgressSnapshot, Project, Report } from '../../types';
 import { BACKLOG_PRIORITY_META, BACKLOG_STATUS_META, OBJETIVO_COLOR, STATUS_META } from '../../types';
-import { buildRoadmapSnapshot } from '../../lib/roadmap';
+import { buildRoadmapSnapshot, computeOnTimeStreak } from '../../lib/roadmap';
+import { isWithinWeek } from '../../utils/date';
 import StatusBadge from './StatusBadge';
 import LogoOrigem from './LogoOrigem';
 import {
@@ -65,6 +66,23 @@ function normalizeCase(line: string): string {
   return line.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 }
 
+/**
+ * A line written as "Label: detail" (the label short enough to be a real
+ * label, not a sentence that happens to contain a colon) renders with the
+ * part before the colon bolded — gives each bullet a title + what-was-done
+ * shape without needing a separate structured field per line.
+ */
+function renderLine(line: string) {
+  const colonIdx = line.indexOf(': ');
+  if (colonIdx <= 0 || colonIdx > 48) return line;
+  return (
+    <>
+      <span className="font-semibold">{line.slice(0, colonIdx)}:</span>
+      {line.slice(colonIdx + 1)}
+    </>
+  );
+}
+
 function renderLines(text: string, twoCol = false) {
   const lines = linesOf(text);
   if (lines.length === 0) return <p className="text-slate-400 italic">—</p>;
@@ -75,7 +93,7 @@ function renderLines(text: string, twoCol = false) {
     >
       {lines.map((line, i) => (
         <li key={i} style={{ breakInside: 'avoid' }}>
-          {normalizeCase(line)}
+          {renderLine(normalizeCase(line))}
         </li>
       ))}
     </ul>
@@ -88,7 +106,7 @@ function gridColsFor(n: number, max = 4): string {
   return ['grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4'][cols - 1];
 }
 
-function SectionTitle({ n, children }: { n: number; children: ReactNode }) {
+function SectionTitle({ n, children, right }: { n: number; children: ReactNode; right?: ReactNode }) {
   return (
     <div className="flex items-center gap-2.5 mb-4">
       <span
@@ -98,6 +116,7 @@ function SectionTitle({ n, children }: { n: number; children: ReactNode }) {
         {n}
       </span>
       <h2 className="text-[15px] font-extrabold tracking-wide text-slate-900">{children}</h2>
+      {right && <div className="ml-auto">{right}</div>}
     </div>
   );
 }
@@ -133,11 +152,76 @@ function StatTile({
   );
 }
 
-function DeliveryCard({ project, index }: { project: Project; index: number }) {
+/**
+ * Compliance/volume hero band — the page's opening claim, right below the
+ * navy header: how much got done this week, how much has accumulated since
+ * the program started, and (when there's a real run) an on-time streak
+ * badge. Deliberately its own component, not a numbered SectionTitle —
+ * these are headline figures, not a report section.
+ */
+function HeroStats({ weekCount, totalCount, streakWeeks }: { weekCount: number; totalCount: number; streakWeeks: number }) {
+  return (
+    <div className="rounded-2xl bg-white px-7 py-5 flex flex-wrap items-center gap-x-8 gap-y-4" style={{ border: `1px solid ${LINE}` }}>
+      <div>
+        <p className="text-4xl font-extrabold text-slate-900 leading-none">{weekCount}</p>
+        <p className="text-[11px] font-semibold mt-1.5" style={{ color: INK_600 }}>
+          {weekCount === 1 ? 'atividade concluída' : 'atividades concluídas'} nesta semana
+        </p>
+      </div>
+      <div className="w-px h-10 shrink-0" style={{ backgroundColor: LINE }} />
+      <div>
+        <p className="text-4xl font-extrabold text-slate-900 leading-none">{totalCount}</p>
+        <p className="text-[11px] font-semibold mt-1.5" style={{ color: INK_600 }}>
+          concluídas desde o início do programa
+        </p>
+      </div>
+      {streakWeeks > 0 && (
+        <div
+          className="ml-auto flex items-center gap-2 rounded-full pl-3 pr-4 py-2"
+          style={{ background: '#e9f7ee', border: '1px solid #bfe6cd' }}
+        >
+          <IconSpark className="w-4 h-4 shrink-0" style={{ color: '#137a3c' }} />
+          <span className="text-[12.5px] font-extrabold leading-tight" style={{ color: '#137a3c' }}>
+            {streakWeeks} {streakWeeks === 1 ? 'semana consecutiva' : 'semanas consecutivas'} com entregas 100% no prazo
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DeliveryCard({
+  project,
+  index,
+  objetivos,
+  atividades,
+}: {
+  project: Project;
+  index: number;
+  objetivos: Objetivo[];
+  atividades: Atividade[];
+}) {
   const meta = STATUS_META[project.status];
   const bulletCount = linesOf(project.deliveries).length;
   const hasRisk = project.risks.trim().length > 0;
   const nextStepsLines = linesOf(project.nextSteps);
+
+  // Roadmap stage this delivery belongs to — only knowable when the project
+  // was created with "vincular ao roadmap" checked (Project.linkedAtividadeId).
+  // An unlinked delivery shows no stage line rather than guessing one.
+  const linkedAtividade = project.linkedAtividadeId ? atividades.find((a) => a.id === project.linkedAtividadeId) : null;
+  const linkedObjetivo = linkedAtividade ? objetivos.find((o) => o.id === linkedAtividade.objetivoId) : null;
+
+  // TODO(compliance-report): Project has no per-delivery "responsável" field
+  // today — only Report.responsible, one person for the whole week. Once a
+  // per-delivery owner exists in the data model, render it on the meta line
+  // below (e.g. "👤 {responsavel} · 📁 {entregaLabel} — {objetivo.name}").
+
+  // TODO(compliance-report): "área(s) envolvida(s)" (e.g. "Diagnóstico",
+  // "Telemática") has no field on Project either — it's a different concept
+  // from the roadmap stage above (a project can touch multiple orgs/domains
+  // that don't map 1:1 to an Objetivo). Once that list exists, render it as
+  // small colored pills in the footer, below the "Sem bloqueios" line.
 
   return (
     <div
@@ -156,6 +240,11 @@ function DeliveryCard({ project, index }: { project: Project; index: number }) {
         </div>
         <StatusBadge status={project.status} label={project.status === 'on_track' ? 'Concluído' : undefined} />
       </div>
+      {linkedObjetivo && (
+        <p className="text-[11px] font-semibold" style={{ color: INK_400 }}>
+          📁 {linkedObjetivo.entregaLabel} — {linkedObjetivo.name}
+        </p>
+      )}
       {bulletCount > 0 && (
         <p className="text-[11px] font-semibold" style={{ color: INK_400 }}>
           {bulletCount} de {bulletCount} itens concluídos
@@ -186,67 +275,50 @@ function DeliveryCard({ project, index }: { project: Project; index: number }) {
   );
 }
 
+/**
+ * Deliberately more compact than DeliveryCard — this section is reference
+ * material (long-horizon roadmap position), not the report's focus, so it
+ * trades detail for density: smaller padding/type, a shorter activity list.
+ */
 function ObjetivoCard({ snapshot, index }: { snapshot: ObjetivoProgressSnapshot; index: number }) {
   const color = DECOR[index % DECOR.length];
-  const hasActivity = snapshot.completedPlanned.length > 0 || snapshot.completedExtra.length > 0;
+  const completedCount = snapshot.completedPlanned.length + snapshot.completedExtra.length;
+  const notStarted = snapshot.progress === 0;
 
   return (
     <div
-      className="rounded-2xl bg-white p-4 flex flex-col gap-2.5"
+      className="rounded-xl bg-white p-3 flex flex-col gap-1.5"
       style={{ border: `1px solid ${LINE}`, borderTop: `3px solid ${color}` }}
     >
       <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color }}>
+        <div className="min-w-0">
+          <p className="text-[9px] font-bold uppercase tracking-wide truncate" style={{ color }}>
             {snapshot.entregaLabel ?? ''}
-            {snapshot.entregaLabel && snapshot.periodLabel ? ' · ' : ''}
-            <span className="normal-case">{snapshot.periodLabel ?? ''}</span>
           </p>
-          <p className="text-sm font-bold leading-snug text-slate-900">{snapshot.name ?? 'Objetivo'}</p>
+          <p className="text-xs font-bold leading-snug text-slate-900 truncate">{snapshot.name ?? 'Objetivo'}</p>
         </div>
         <span
-          className="text-[10px] font-bold rounded-full px-2 py-1 shrink-0"
+          className="text-[9px] font-bold rounded-full px-1.5 py-0.5 shrink-0"
           style={{ backgroundColor: `${color}1A`, color }}
         >
-          Semana {snapshot.weekOfQuarter} de {snapshot.totalWeeks ?? snapshot.weekOfQuarter}
+          Sem. {snapshot.weekOfQuarter}/{snapshot.totalWeeks ?? snapshot.weekOfQuarter}
         </span>
       </div>
 
       <div>
-        <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: LINE }}>
+        <div className="h-1 rounded-full overflow-hidden" style={{ backgroundColor: LINE }}>
           <div className="h-full rounded-full" style={{ width: `${snapshot.progress}%`, backgroundColor: color }} />
         </div>
-        <p className="text-[11px] font-semibold mt-1" style={{ color: INK_400 }}>
-          {snapshot.progress}% concluído
+        <p className="text-[10px] font-semibold mt-1" style={{ color: notStarted ? INK_400 : color }}>
+          {notStarted ? 'Planejada' : `${snapshot.progress}% concluído`}
         </p>
       </div>
 
-      <div className="text-[12px] leading-snug flex-1" style={{ color: INK_600 }}>
-        {!hasActivity ? (
-          <p className="text-slate-400 italic">Nenhuma atividade concluída nesta semana.</p>
-        ) : (
-          <ul className="space-y-1">
-            {snapshot.completedPlanned.map((a) => (
-              <li key={a.id} className="flex items-start gap-1.5">
-                <IconCheck className="w-3 h-3 shrink-0 mt-0.5" style={{ color: STATUS_META.on_track.color }} />
-                <span>{a.name}</span>
-              </li>
-            ))}
-            {snapshot.completedExtra.map((a) => (
-              <li key={a.id} className="flex items-start gap-1.5">
-                <IconCheck className="w-3 h-3 shrink-0 mt-0.5" style={{ color: STATUS_META.on_track.color }} />
-                <span>{a.name}</span>
-                <span
-                  className="text-[9px] font-bold uppercase tracking-wide rounded px-1 py-0.5 shrink-0"
-                  style={{ backgroundColor: `${PURPLE}1A`, color: PURPLE }}
-                >
-                  Extra
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <p className="text-[10.5px]" style={{ color: INK_400 }}>
+        {completedCount === 0
+          ? 'Nenhuma atividade concluída nesta semana.'
+          : `${completedCount} ${completedCount === 1 ? 'atividade concluída' : 'atividades concluídas'} nesta semana`}
+      </p>
     </div>
   );
 }
@@ -320,6 +392,16 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report, atividades, ob
     { nao_iniciado: 0, em_andamento: 0, concluido: 0 } as Record<string, number>,
   );
 
+  const weekCompletedCount = atividades.filter(
+    (a) => a.status === 'done' && a.completedAt && isWithinWeek(a.completedAt, report.weekStart),
+  ).length;
+  const totalCompletedCount = atividades.filter((a) => a.status === 'done').length;
+  const onTimeStreakWeeks = computeOnTimeStreak(atividades, report.weekStart);
+
+  const roadmapOverallProgress = Math.round(
+    roadmapData.reduce((sum, s) => sum + s.progress, 0) / Math.max(roadmapData.length, 1),
+  );
+
   return (
     <div
       ref={ref}
@@ -379,6 +461,9 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report, atividades, ob
           </div>
         </div>
 
+        {/* Hero: compliance/volume headline figures */}
+        <HeroStats weekCount={weekCompletedCount} totalCount={totalCompletedCount} streakWeeks={onTimeStreakWeeks} />
+
         {/* 1. Panorama */}
         <section>
           <SectionTitle n={1}>Panorama da semana</SectionTitle>
@@ -412,22 +497,33 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report, atividades, ob
           </div>
         </section>
 
-        {/* 2. Roadmap por objetivos */}
+        {/* 2. Entregas - foco principal do relatório de compliance/volume */}
         <section>
-          <SectionTitle n={2}>Roadmap — Estruturação da Área de Sistemas</SectionTitle>
-          <div className="grid grid-cols-2 gap-4">
-            {roadmapData.map((s, i) => (
-              <ObjetivoCard key={s.objetivoId} snapshot={s} index={i} />
+          <SectionTitle n={2}>Entregas da semana</SectionTitle>
+          <div className={`grid gap-4 ${gridColsFor(report.projects.length)}`}>
+            {report.projects.map((p, i) => (
+              <DeliveryCard key={p.id} project={p} index={i} objetivos={objetivos} atividades={atividades} />
             ))}
           </div>
         </section>
 
-        {/* 3. Entregas - foco principal */}
+        {/* 3. Roadmap por objetivos — reference material, kept compact and
+           below the week's actual deliveries so it reads as context, not
+           the report's headline. */}
         <section>
-          <SectionTitle n={3}>Entregas da semana</SectionTitle>
-          <div className={`grid gap-4 ${gridColsFor(report.projects.length)}`}>
-            {report.projects.map((p, i) => (
-              <DeliveryCard key={p.id} project={p} index={i} />
+          <SectionTitle
+            n={3}
+            right={
+              <span className="text-[11px] font-bold rounded-full px-2.5 py-1" style={{ backgroundColor: `${SECTION_COLOR}0F`, color: SECTION_COLOR }}>
+                {roadmapOverallProgress}% concluído no geral
+              </span>
+            }
+          >
+            Roadmap — Estruturação da Área de Sistemas
+          </SectionTitle>
+          <div className="grid grid-cols-4 gap-3">
+            {roadmapData.map((s, i) => (
+              <ObjetivoCard key={s.objetivoId} snapshot={s} index={i} />
             ))}
           </div>
         </section>

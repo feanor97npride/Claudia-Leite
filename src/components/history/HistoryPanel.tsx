@@ -1,14 +1,27 @@
 import { useEffect, useState } from 'react';
-import type { ProjectStatus, Report } from '../../types';
+import type { Atividade, Objetivo, ProjectStatus, Report } from '../../types';
 import { STATUS_META } from '../../types';
 import { formatShortDate } from '../../utils/date';
+import { buildRoadmapSnapshot } from '../../lib/roadmap';
 
 interface Props {
   reports: Report[];
   activeReportId: string | null;
+  atividades: Atividade[];
+  objetivos: Objetivo[];
   onView: (report: Report) => void;
   onDuplicate: (report: Report) => void;
   onDelete: (report: Report) => void;
+}
+
+/** Roadmap atividades (planned + extra) completed in a report's own week —
+ * from its frozen roadmapSnapshot when present, recomputed live from
+ * `atividades` otherwise (older reports saved before that field existed).
+ * Distinct from `report.projects.length`, which counts ENTREGAS (this
+ * report's free-narrative deliveries), not governed roadmap atividades. */
+function completedAtividadesCount(report: Report, atividades: Atividade[], objetivos: Objetivo[]): number {
+  const snapshot = report.roadmapSnapshot ?? buildRoadmapSnapshot(atividades, report.weekStart, objetivos);
+  return snapshot.reduce((sum, s) => sum + s.completedPlanned.length + s.completedExtra.length, 0);
 }
 
 function worstStatus(report: Report): ProjectStatus | null {
@@ -18,7 +31,7 @@ function worstStatus(report: Report): ProjectStatus | null {
   return 'on_track';
 }
 
-export default function HistoryPanel({ reports, activeReportId, onView, onDuplicate, onDelete }: Props) {
+export default function HistoryPanel({ reports, activeReportId, atividades, objetivos, onView, onDuplicate, onDelete }: Props) {
   const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
 
   // Close the context menu on any click outside it — same outside-tap
@@ -113,8 +126,8 @@ export default function HistoryPanel({ reports, activeReportId, onView, onDuplic
               </div>
               <p className="text-sm font-semibold text-slate-900 leading-snug mb-0.5">{r.periodLabel}</p>
               <p className="text-xs text-slate-400 mb-3">
-                {formatShortDate(r.weekStart)} · {r.projects.length}{' '}
-                {r.projects.length === 1 ? 'atividade' : 'atividades'}
+                {formatShortDate(r.weekStart)} · {r.projects.length} {r.projects.length === 1 ? 'entrega' : 'entregas'} ·{' '}
+                {completedAtividadesCount(r, atividades, objetivos)} atividades
               </p>
               <div className="flex gap-1.5 flex-wrap">
                 <button

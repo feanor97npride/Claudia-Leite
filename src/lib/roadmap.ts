@@ -1,5 +1,5 @@
 import type { Atividade, ActivityKind, Objetivo, ObjetivoId, RoadmapSnapshot, TimelineVisualStatus } from '../types';
-import { currentWeekOfObjetivo, isWithinWeek } from '../utils/date';
+import { currentWeekOfObjetivo, isWithinWeek, previousWeekStartISO } from '../utils/date';
 
 // Objetivo/Atividade are now server-authoritative (see /api/objetivos,
 // /api/atividades and server/roadmap.ts) — seeding happens once on the
@@ -194,4 +194,69 @@ export function buildRoadmapSnapshot(atividades: Atividade[], weekStart: string,
     completedPlanned: completedInWeek(obj.id, atividades, weekStart, 'planned'),
     completedExtra: completedInWeek(obj.id, atividades, weekStart, 'extra'),
   }));
+}
+
+/**
+ * Compliance metric: how many consecutive weeks (walking backward from
+ * referenceWeekStart) had 100% of their completed PLANNED atividades
+ * finished on time or early (computeAheadBehindPercent >= 0 — negative means
+ * late). Only planned atividades count, same rule as the other governance
+ * calculations above (extras were never part of the governed plan).
+ *
+ * A week with zero planned atividades completed (no data either way) is
+ * skipped — it neither extends nor breaks the streak — so a quiet week
+ * doesn't wrongly reset an otherwise-perfect run. Scanning stops (streak
+ * capped at 0 for that walk) at the first week that DOES have completed
+ * planned atividades and at least one was late. `maxLookbackWeeks` bounds
+ * the walk so a mostly-empty history doesn't scan back indefinitely.
+ */
+export function computeOnTimeStreak(atividades: Atividade[], referenceWeekStart: string, maxLookbackWeeks = 52): number {
+  let streak = 0;
+  let weekStart = referenceWeekStart;
+  let emptyWeeksInARow = 0;
+  for (let i = 0; i < maxLookbackWeeks; i++) {
+    const withData = atividades
+      .filter((a) => a.kind === 'planned' && a.status === 'done' && a.completedAt && isWithinWeek(a.completedAt, weekStart))
+      .map(computeAheadBehindPercent)
+      .filter((v): v is number => v !== null);
+
+    if (withData.length === 0) {
+      emptyWeeksInARow += 1;
+      if (emptyWeeksInARow >= 8) break;
+      weekStart = previousWeekStartISO(weekStart);
+      continue;
+    }
+
+    if (!withData.every((v) => v >= 0)) break;
+    streak += 1;
+    emptyWeeksInARow = 0;
+    weekStart = previousWeekStartISO(weekStart);
+  }
+  return streak;
+}
+
+export interface WeeklyCompletedCount {
+  weekStart: string;
+  count: number;
+}
+
+/**
+ * Atividades (any kind) marked done with completedAt falling in each of the
+ * `weeks` most recent weeks (oldest first), anchored to referenceWeekStart —
+ * feeds the sidebar's "last 6 weeks" bar chart (Melhoria: Snapshot como
+ * relatório de compliance/volume).
+ */
+export function computeWeeklyCompletedCounts(
+  atividades: Atividade[],
+  referenceWeekStart: string,
+  weeks = 6,
+): WeeklyCompletedCount[] {
+  const result: WeeklyCompletedCount[] = [];
+  let weekStart = referenceWeekStart;
+  for (let i = 0; i < weeks; i++) {
+    const count = atividades.filter((a) => a.status === 'done' && a.completedAt && isWithinWeek(a.completedAt, weekStart)).length;
+    result.unshift({ weekStart, count });
+    weekStart = previousWeekStartISO(weekStart);
+  }
+  return result;
 }

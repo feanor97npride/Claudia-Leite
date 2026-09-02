@@ -24,6 +24,12 @@ export function nextWeekStartISO(weekStartISO: string): string {
   return toISODate(d);
 }
 
+export function previousWeekStartISO(weekStartISO: string): string {
+  const d = new Date(weekStartISO + 'T00:00:00');
+  d.setDate(d.getDate() - 7);
+  return toISODate(d);
+}
+
 const DAY_MONTH = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long' });
 const DAY_MONTH_SHORT = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
