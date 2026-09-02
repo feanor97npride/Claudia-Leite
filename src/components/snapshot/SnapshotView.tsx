@@ -2,8 +2,7 @@ import { forwardRef } from 'react';
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import type { Atividade, BacklogItem, Objetivo, ObjetivoProgressSnapshot, Project, Report } from '../../types';
 import { BACKLOG_PRIORITY_META, BACKLOG_STATUS_META, OBJETIVO_COLOR, STATUS_META } from '../../types';
-import { buildRoadmapSnapshot, computeOnTimeStreak } from '../../lib/roadmap';
-import { isWithinWeek } from '../../utils/date';
+import { buildRoadmapSnapshot, computeOnTimeStreak, reportRoadmapAtividadesCount } from '../../lib/roadmap';
 import StatusBadge from './StatusBadge';
 import LogoOrigem from './LogoOrigem';
 import {
@@ -397,16 +396,18 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report, reports, ativi
   );
 
   // Compliance/volume hero figures: sum BOTH atividades concluídas
-  // (governed roadmap items) AND entregas (this week's report.projects) —
-  // neither one alone is "everything delivered" (an entrega can exist with
-  // no roadmap atividade behind it, e.g. ad-hoc work).
-  const weekAtividadesCount = atividades.filter(
-    (a) => a.status === 'done' && a.completedAt && isWithinWeek(a.completedAt, report.weekStart),
-  ).length;
+  // (governed roadmap items) AND entregas (report.projects) — neither one
+  // alone is "everything delivered" (an entrega can exist with no roadmap
+  // atividade behind it, e.g. ad-hoc work). Atividades are counted via
+  // reportRoadmapAtividadesCount — the SAME per-report figure the History
+  // panel shows — so this total is always exactly the sum of the numbers
+  // visible on screen across every report card, never a bigger number from
+  // atividades whose completion week never got a report saved for it.
+  const weekAtividadesCount = reportRoadmapAtividadesCount(report, atividades, objetivos);
   const weekEntregasCount = report.projects.length;
   const weekCompletedCount = weekAtividadesCount + weekEntregasCount;
 
-  const totalAtividadesCount = atividades.filter((a) => a.status === 'done').length;
+  const totalAtividadesCount = reports.reduce((sum, r) => sum + reportRoadmapAtividadesCount(r, atividades, objetivos), 0);
   const totalEntregasCount = reports.reduce((sum, r) => sum + r.projects.length, 0);
   const totalCompletedCount = totalAtividadesCount + totalEntregasCount;
 

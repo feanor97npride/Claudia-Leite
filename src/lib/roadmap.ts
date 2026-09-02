@@ -197,6 +197,26 @@ export function buildRoadmapSnapshot(atividades: Atividade[], weekStart: string,
 }
 
 /**
+ * Roadmap atividades (planned + extra) completed in a report's own week —
+ * from its frozen roadmapSnapshot when present, recomputed live from
+ * `atividades` otherwise (older reports saved before that field existed).
+ * Distinct from `report.projects.length`, which counts ENTREGAS (that
+ * report's free-narrative deliveries), not governed roadmap atividades.
+ *
+ * The single source of truth for "atividades" in any UI total that must
+ * reconcile with the per-report numbers on screen (History panel, Snapshot
+ * hero band) — summing this across `reports` instead of independently
+ * counting every done atividade keeps the two in sync: an atividade
+ * completed in a week with no saved report simply doesn't count anywhere,
+ * on the hero total or in the list, rather than inflating one but not
+ * the other.
+ */
+export function reportRoadmapAtividadesCount(report: Report, atividades: Atividade[], objetivos: Objetivo[]): number {
+  const snapshot = report.roadmapSnapshot ?? buildRoadmapSnapshot(atividades, report.weekStart, objetivos);
+  return snapshot.reduce((sum, s) => sum + s.completedPlanned.length + s.completedExtra.length, 0);
+}
+
+/**
  * Compliance metric: how many consecutive weeks (walking backward from
  * referenceWeekStart) had 100% "on prazo" work, from BOTH sources the rest
  * of the hero band sums (see computeWeeklyCompletedCounts) — not atividades
