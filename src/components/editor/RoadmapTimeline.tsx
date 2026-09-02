@@ -130,7 +130,7 @@ export default function RoadmapTimeline({
   const [statusFilter, setStatusFilter] = useState<Set<TimelineVisualStatus>>(new Set());
   const [responsavelFilter, setResponsavelFilter] = useState<Set<string>>(new Set());
   const [showNewActivity, setShowNewActivity] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string; kind: 'planned' | 'extra' } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -900,12 +900,12 @@ export default function RoadmapTimeline({
                               Extra
                             </span>
                           )}
-                          {!readOnly && atividade.kind === 'extra' && (
+                          {!readOnly && (
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setDeleteConfirm({ id: atividade.id, name: atividade.name });
+                                setDeleteConfirm({ id: atividade.id, name: atividade.name, kind: atividade.kind });
                               }}
                               title="Remover atividade"
                               className="shrink-0 text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all duration-200 p-1"
@@ -1254,8 +1254,12 @@ export default function RoadmapTimeline({
       )}
       {deleteConfirm && (
         <ConfirmDialog
-          title="Remover atividade extra?"
-          message={`Tem certeza que deseja remover "${deleteConfirm.name}"? Esta ação não pode ser desfeita.`}
+          title={deleteConfirm.kind === 'planned' ? 'Remover atividade planejada?' : 'Remover atividade extra?'}
+          message={
+            deleteConfirm.kind === 'planned'
+              ? `Tem certeza que deseja remover "${deleteConfirm.name}"? Esta é uma atividade planejada e afetará o progresso do roadmap. Esta ação não pode ser desfeita.`
+              : `Tem certeza que deseja remover "${deleteConfirm.name}"? Esta ação não pode ser desfeita.`
+          }
           confirmLabel={isDeleting ? 'Removendo…' : 'Remover'}
           onConfirm={handleDeleteAtividade}
           onCancel={() => setDeleteConfirm(null)}

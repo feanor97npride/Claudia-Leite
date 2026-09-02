@@ -233,6 +233,14 @@ export async function deleteExtraAtividade(user: AuthedUser, id: string): Promis
   await pool.query('DELETE FROM atividades WHERE id = $1', [id]);
 }
 
+export async function deleteAtividade(user: AuthedUser, id: string): Promise<void> {
+  requireRole(user, 'admin');
+  const { rows } = await pool.query('SELECT * FROM atividades WHERE id = $1', [id]);
+  const current = rows[0] ? mapAtividade(rows[0]) : null;
+  if (!current) throw new HttpError(404, 'Atividade não encontrada.');
+  await pool.query('DELETE FROM atividades WHERE id = $1', [id]);
+}
+
 /**
  * Admin-only. Updates any subset of an atividade's editable fields in one
  * call (Bloco 2.5: save everything at once, not field by field). Every
