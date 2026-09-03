@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: "Inter", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  background-color: #f1f5f9;
+}
+
+/* Snapshot export canvas: fixed 16:9, sized inline via style on the element */
+.snapshot-frame {
+  box-sizing: border-box;
+}
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 8mm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .snapshot-frame, .snapshot-frame * {
+    visibility: visible;
+  }
+
+  .snapshot-frame {
+    position: absolute;
+    top: 0;
+    left: 0;
+    box-shadow: none !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 9999px;
+}

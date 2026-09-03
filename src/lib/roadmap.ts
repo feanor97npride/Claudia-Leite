@@ -1,0 +1,357 @@
+import type { Atividade, ActivityKind, Objetivo, ObjetivoId, Report, RoadmapSnapshot, TimelineVisualStatus } from '../types';
+import { currentWeekOfObjetivo, isWithinWeek, previousWeekStartISO } from '../utils/date';
+
+// Objetivo/Atividade are now server-authoritative (see /api/objetivos,
+// /api/atividades and server/roadmap.ts) — seeding happens once on the
+// backend the first time they're requested. This module keeps only the
+// pure, presentation-side calculations shared by the editor and snapshot.
+
+/** Sorted by sortOrder (Timeline drag-and-drop position) — the single
+ *  source of truth for display order, shared by every screen (Timeline,
+ *  Editor) so a reorder made in one shows up consistently in the other. */
+export function atividadesForObjetivo(objetivoId: ObjetivoId, atividades: Atividade[]): Atividade[] {
+  return atividades.filter((a) => a.objetivoId === objetivoId).sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+/**
+ * Extra atividades don't carry over from week to week in the live editor —
+ * an extra created for last week's report shouldn't still be sitting there
+ * as an open TODO in this week's Roadmap. Planned atividades are always
+ * visible (they're the actual quarter plan, not a per-week note), and an
+ * extra with no weekStart (created before this feature existed) stays
+ * visible too — never disappear pre-existing data as a side effect.
+ */
+export function isVisibleThisWeek(atividade: Atividade, currentWeekStart: string): boolean {
+  if (atividade.kind !== 'extra') return true;
+  if (!atividade.weekStart) return true;
+  return atividade.weekStart === currentWeekStart;
+}
+
+/**
+ * Roadmap Timeline visibility rule for extras (Melhoria 2.2) — deliberately
+ * different from isVisibleThisWeek above, which stays scoped to whatever
+ * report is open in the Editor. The Timeline is a continuous view of the
+ * whole roadmap anchored on today, not on the selected report, so an extra
+ * still open (planned/in_progress) only matters while its own week is the
+ * real current week — same "don't leave a stale TODO visible" rationale —
+ * but once DONE it becomes part of the permanent, accumulated history of
+ * what was delivered and must keep showing regardless of which week it was
+ * created in.
+ */
+export function isVisibleInTimeline(atividade: Atividade, currentWeekStart: string): boolean {
+  if (atividade.kind !== 'extra') return true;
+  if (atividade.status === 'done') return true;
+  if (!atividade.weekStart) return true;
+  return atividade.weekStart === currentWeekStart;
+}
+
+/**
+ * Which of the 4 Timeline visual states an atividade is in. "Atrasado" has
+ * no native status value (ActivityStatus is only planned/in_progress/done)
+ * so it's derived: not done AND past its planned end date. Checked before
+ * 'in_progress' so a late in-progress item reads as atrasado, not as
+ * merely "em andamento".
+ */
+export function timelineVisualStatus(a: Atividade, todayISO: string): TimelineVisualStatus {
+  if (a.status === 'done') return 'done';
+  if (a.plannedEnd && a.plannedEnd < todayISO) return 'atrasado';
+  if (a.status === 'in_progress') return 'in_progress';
+  return 'planned';
+}
+
+/**
+ * How much of an atividade's own Gantt bar should read as "filled", 0-100.
+ * When the atividade has 1+ subtasks, this is a REAL progress number — the
+ * average of each subtask's own hand-set percent — since that's an actual
+ * authored value, not a proxy. Otherwise (the vast majority of atividades,
+ * which have no subtasks) there's no per-atividade completion percentage in
+ * the data model at all (status is only planned/in_progress/done), so this
+ * falls back to the % of the atividade's OWN planned window that has
+ * already elapsed (clamped to [0,100]), the same "expected progress" proxy
+ * classic Gantt tools show when no explicit %-complete field exists. A done
+ * atividade is always 100% regardless of dates; one with no planned window
+ * and no subtasks shows 0%.
+ */
+export function computeBarFillPercent(a: Atividade, todayISO: string): number {
+  if (a.subtasks.length > 0) {
+    return Math.round(a.subtasks.reduce((sum, s) => sum + s.percent, 0) / a.subtasks.length);
+  }
+  if (a.status === 'done') return 100;
+  if (!a.plannedStart || !a.plannedEnd) return 0;
+  const start = new Date(a.plannedStart + 'T00:00:00').getTime();
+  const end = new Date(a.plannedEnd + 'T00:00:00').getTime();
+  const now = new Date(todayISO + 'T00:00:00').getTime();
+  if (end <= start) return 0;
+  return Math.max(0, Math.min(100, Math.round(((now - start) / (end - start)) * 100)));
+}
+
+/** progress% = done planned / total planned, per objetivo. Extras never count. */
+export function computeObjetivoProgress(objetivoId: ObjetivoId, atividades: Atividade[]): number {
+  const planned = atividades.filter((a) => a.objetivoId === objetivoId && a.kind === 'planned');
+  if (planned.length === 0) return 0;
+  const done = planned.filter((a) => a.status === 'done').length;
+  return Math.round((done / planned.length) * 100);
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * % de adiantamento/atraso de UMA atividade concluída.
+ *
+ *   duração planejada (dias) = plannedEnd - plannedStart
+ *   dias de antecipação      = plannedEnd - completedAt   (positivo = concluída antes do prazo, negativo = depois)
+ *   % adiantamento/atraso    = (dias de antecipação / duração planejada) * 100
+ *
+ * Exemplo: Matriz RACI planejada de 21/ago a 31/ago (10 dias), concluída em
+ * 21/ago -> 10 dias de antecipação -> (10 / 10) * 100 = 100% de adiantamento.
+ *
+ * Retorna `null` (sem dados/não aplicável) quando a atividade não está
+ * concluída, quando faltam plannedStart/plannedEnd/completedAt, ou quando a
+ * duração planejada não é positiva — nesses casos a atividade simplesmente
+ * não entra no cálculo, em vez de contar como 0%.
+ */
+export function computeAheadBehindPercent(a: Atividade): number | null {
+  if (a.status !== 'done') return null;
+  if (!a.plannedStart || !a.plannedEnd || !a.completedAt) return null;
+  const plannedStart = new Date(a.plannedStart + 'T00:00:00').getTime();
+  const plannedEnd = new Date(a.plannedEnd + 'T00:00:00').getTime();
+  const completedAt = new Date(a.completedAt + 'T00:00:00').getTime();
+  const plannedDurationDays = (plannedEnd - plannedStart) / DAY_MS;
+  if (plannedDurationDays <= 0) return null;
+  const daysAhead = (plannedEnd - completedAt) / DAY_MS;
+  return Math.round((daysAhead / plannedDurationDays) * 100);
+}
+
+/**
+ * Adiantamento médio do quarter: média simples do % de adiantamento/atraso
+ * das atividades PLANEJADAS concluídas do objetivo (atividades extras nunca
+ * entram, mesma regra já aplicada ao progresso %). `null` = ainda sem
+ * nenhuma atividade planejada concluída com dados de prazo suficientes.
+ */
+export function computeObjetivoAheadBehind(objetivoId: ObjetivoId, atividades: Atividade[]): number | null {
+  const values = atividades
+    .filter((a) => a.objetivoId === objetivoId && a.kind === 'planned')
+    .map(computeAheadBehindPercent)
+    .filter((v): v is number => v !== null);
+  if (values.length === 0) return null;
+  return Math.round(values.reduce((sum, v) => sum + v, 0) / values.length);
+}
+
+export interface GovernanceIndicators {
+  onTimePercent: number | null;
+  earlyPercent: number | null;
+  latePercent: number | null;
+  withDataCount: number;
+  extraActivitiesCount: number;
+  averageAheadBehind: number | null;
+}
+
+/**
+ * Bloco 1.4: indicadores de governança agregados de TODO o roadmap (todos os
+ * objetivos juntos), reaproveitando o mesmo cálculo de adiantamento/atraso
+ * usado por objetivo. % são sobre as atividades planejadas concluídas que
+ * têm dados de prazo suficientes — as demais (sem prazo, ou não concluídas)
+ * simplesmente não entram, em vez de contar como 0%.
+ */
+export function computeGovernanceIndicators(atividades: Atividade[]): GovernanceIndicators {
+  const values = atividades
+    .filter((a) => a.kind === 'planned')
+    .map(computeAheadBehindPercent)
+    .filter((v): v is number => v !== null);
+  const withDataCount = values.length;
+  const pct = (count: number) => (withDataCount === 0 ? null : Math.round((count / withDataCount) * 100));
+  return {
+    onTimePercent: pct(values.filter((v) => v === 0).length),
+    earlyPercent: pct(values.filter((v) => v > 0).length),
+    latePercent: pct(values.filter((v) => v < 0).length),
+    withDataCount,
+    extraActivitiesCount: atividades.filter((a) => a.kind === 'extra').length,
+    averageAheadBehind: withDataCount === 0 ? null : Math.round(values.reduce((sum, v) => sum + v, 0) / withDataCount),
+  };
+}
+
+function completedInWeek(objetivoId: ObjetivoId, atividades: Atividade[], weekStart: string, kind: ActivityKind) {
+  return atividades
+    .filter(
+      (a) =>
+        a.objetivoId === objetivoId &&
+        a.kind === kind &&
+        a.status === 'done' &&
+        a.completedAt &&
+        isWithinWeek(a.completedAt, weekStart),
+    )
+    .map((a) => ({ id: a.id, name: a.name }));
+}
+
+/** Builds the frozen roadmap snapshot for a report, anchored to that report's own week. */
+export function buildRoadmapSnapshot(atividades: Atividade[], weekStart: string, objetivos: Objetivo[]): RoadmapSnapshot {
+  const referenceDate = new Date(weekStart + 'T00:00:00');
+  return objetivos.map((obj) => ({
+    objetivoId: obj.id,
+    name: obj.name,
+    entregaLabel: obj.entregaLabel,
+    periodLabel: obj.periodLabel,
+    totalWeeks: obj.totalWeeks,
+    progress: computeObjetivoProgress(obj.id, atividades),
+    weekOfQuarter: currentWeekOfObjetivo(obj, referenceDate),
+    completedPlanned: completedInWeek(obj.id, atividades, weekStart, 'planned'),
+    completedExtra: completedInWeek(obj.id, atividades, weekStart, 'extra'),
+  }));
+}
+
+/**
+ * Roadmap atividades (planned + extra) completed in a report's own week —
+ * from its frozen roadmapSnapshot when present, recomputed live from
+ * `atividades` otherwise (older reports saved before that field existed).
+ * Distinct from `report.projects.length`, which counts ENTREGAS (that
+ * report's free-narrative deliveries), not governed roadmap atividades.
+ *
+ * The single source of truth for "atividades" in any UI total that must
+ * reconcile with the per-report numbers on screen (History panel, Snapshot
+ * hero band) — summing this across `reports` instead of independently
+ * counting every done atividade keeps the two in sync: an atividade
+ * completed in a week with no saved report simply doesn't count anywhere,
+ * on the hero total or in the list, rather than inflating one but not
+ * the other.
+ */
+export function reportRoadmapAtividadesCount(report: Report, atividades: Atividade[], objetivos: Objetivo[]): number {
+  const snapshot = report.roadmapSnapshot ?? buildRoadmapSnapshot(atividades, report.weekStart, objetivos);
+  return snapshot.reduce((sum, s) => sum + s.completedPlanned.length + s.completedExtra.length, 0);
+}
+
+/**
+ * Compliance metric: how many consecutive weeks (walking backward from
+ * referenceWeekStart) had 100% "on prazo" work, from BOTH sources the rest
+ * of the hero band sums (see computeWeeklyCompletedCounts) — not atividades
+ * alone, since the badge's own copy ("...com entregas 100% no prazo") talks
+ * about entregas too:
+ *   - PLANNED atividades completed that week: on time/early when
+ *     computeAheadBehindPercent >= 0 (negative means late).
+ *   - Entregas (that week's report.projects, matched by exact weekStart):
+ *     on time when status === 'on_track' — 'attention'/'delayed' break it.
+ * A week both were silent on (no completed planned atividades with date
+ * data AND no report for that weekStart) is skipped — it neither extends
+ * nor breaks the streak, so a quiet week doesn't wrongly reset an otherwise-
+ * perfect run. Scanning stops at the first week that DOES have data on
+ * either side and fails it. `maxLookbackWeeks` bounds the walk so a mostly-
+ * empty history doesn't scan back indefinitely.
+ */
+export function computeOnTimeStreak(
+  atividades: Atividade[],
+  reports: Report[],
+  referenceWeekStart: string,
+  maxLookbackWeeks = 52,
+): number {
+  let streak = 0;
+  let weekStart = referenceWeekStart;
+  let emptyWeeksInARow = 0;
+  for (let i = 0; i < maxLookbackWeeks; i++) {
+    const atividadesWithData = atividades
+      .filter((a) => a.kind === 'planned' && a.status === 'done' && a.completedAt && isWithinWeek(a.completedAt, weekStart))
+      .map(computeAheadBehindPercent)
+      .filter((v): v is number => v !== null);
+    const weekEntregas = reports.filter((r) => r.weekStart === weekStart).flatMap((r) => r.projects);
+
+    if (atividadesWithData.length === 0 && weekEntregas.length === 0) {
+      emptyWeeksInARow += 1;
+      if (emptyWeeksInARow >= 8) break;
+      weekStart = previousWeekStartISO(weekStart);
+      continue;
+    }
+
+    const atividadesOnTime = atividadesWithData.every((v) => v >= 0);
+    const entregasOnTime = weekEntregas.every((p) => p.status === 'on_track');
+    if (!atividadesOnTime || !entregasOnTime) break;
+
+    streak += 1;
+    emptyWeeksInARow = 0;
+    weekStart = previousWeekStartISO(weekStart);
+  }
+  return streak;
+}
+
+export interface SnapshotHeroStats {
+  weekAtividadesCount: number;
+  weekEntregasCount: number;
+  /** weekAtividadesCount + weekEntregasCount. */
+  weekCompletedCount: number;
+  totalAtividadesCount: number;
+  totalEntregasCount: number;
+  /** totalAtividadesCount + totalEntregasCount. */
+  totalCompletedCount: number;
+  onTimeStreakWeeks: number;
+  /** Average of every objetivo's progress %, rounded. */
+  roadmapOverallProgress: number;
+}
+
+/**
+ * The compliance/volume figures both Snapshot views (the full report and
+ * the 16:9 slide) lead with — computed once here so the two can never drift
+ * apart (see reportRoadmapAtividadesCount's own note: it's what keeps a
+ * total reconcilable with what's on screen elsewhere).
+ */
+export function computeSnapshotHeroStats(
+  report: Report,
+  reports: Report[],
+  atividades: Atividade[],
+  objetivos: Objetivo[],
+): SnapshotHeroStats {
+  const weekAtividadesCount = reportRoadmapAtividadesCount(report, atividades, objetivos);
+  const weekEntregasCount = report.projects.length;
+  const totalAtividadesCount = reports.reduce((sum, r) => sum + reportRoadmapAtividadesCount(r, atividades, objetivos), 0);
+  const totalEntregasCount = reports.reduce((sum, r) => sum + r.projects.length, 0);
+  const roadmapData = report.roadmapSnapshot ?? buildRoadmapSnapshot(atividades, report.weekStart, objetivos);
+  const roadmapOverallProgress = Math.round(
+    roadmapData.reduce((sum, s) => sum + s.progress, 0) / Math.max(roadmapData.length, 1),
+  );
+  return {
+    weekAtividadesCount,
+    weekEntregasCount,
+    weekCompletedCount: weekAtividadesCount + weekEntregasCount,
+    totalAtividadesCount,
+    totalEntregasCount,
+    totalCompletedCount: totalAtividadesCount + totalEntregasCount,
+    onTimeStreakWeeks: computeOnTimeStreak(atividades, reports, report.weekStart),
+    roadmapOverallProgress,
+  };
+}
+
+export interface WeeklyCompletedCount {
+  weekStart: string;
+  atividadesCount: number;
+  entregasCount: number;
+  /** atividadesCount + entregasCount — the combined volume figure the
+   *  compliance/volume framing leads with. */
+  count: number;
+}
+
+/**
+ * Volume of work closed out in each of the `weeks` most recent weeks (oldest
+ * first), anchored to referenceWeekStart — feeds the sidebar's "last 6
+ * weeks" bar chart and the Snapshot hero band (Melhoria: Snapshot como
+ * relatório de compliance/volume). Combines TWO sources on purpose, not just
+ * governed roadmap atividades: `entregas` (Report.projects — the week's
+ * free-narrative deliveries, one report per week) count too, since they
+ * represent real completed work the atividades side alone doesn't capture
+ * (e.g. ad-hoc deliveries never tied to a roadmap atividade).
+ */
+export function computeWeeklyCompletedCounts(
+  atividades: Atividade[],
+  reports: Report[],
+  referenceWeekStart: string,
+  weeks = 6,
+): WeeklyCompletedCount[] {
+  const result: WeeklyCompletedCount[] = [];
+  let weekStart = referenceWeekStart;
+  for (let i = 0; i < weeks; i++) {
+    const atividadesCount = atividades.filter(
+      (a) => a.status === 'done' && a.completedAt && isWithinWeek(a.completedAt, weekStart),
+    ).length;
+    const entregasCount = reports
+      .filter((r) => r.weekStart === weekStart)
+      .reduce((sum, r) => sum + r.projects.length, 0);
+    result.unshift({ weekStart, atividadesCount, entregasCount, count: atividadesCount + entregasCount });
+    weekStart = previousWeekStartISO(weekStart);
+  }
+  return result;
+}

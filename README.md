@@ -1,0 +1,796 @@
+# Status Report Semanal — Sistemas (TI)
+
+Aplicação web para gerar um status report semanal em formato "one pager" para
+acompanhamento das atividades da área de Sistemas (TI).
+
+## Funcionalidades
+
+- Formulário para registrar cabeçalho (área, período, responsável), resumo
+  executivo, projetos/atividades, indicadores gerais, destaques e pontos de
+  atenção.
+- Projetos são dinâmicos (adicionar/remover) e cada um tem status com
+  indicador tipo semáforo (No prazo / Atenção / Atrasado), % de conclusão,
+  próximos passos e riscos/bloqueios.
+- As seções **Entregas da semana** e **Avanços para a semana seguinte**
+  recebem destaque visual em cada projeto — são o foco principal do report.
+- **Roadmap por Objetivos (Quarters)** — acompanhamento do roadmap "Estruturação
+  da Área de Sistemas": 4 objetivos (Diagnóstico, Governança, Operação,
+  Estratégia Futura), cada um com uma lista de atividades pré-cadastradas. O
+  progresso (%) de cada objetivo é calculado automaticamente a partir das
+  atividades planejadas concluídas; atividades extras (fora do planejamento
+  original) podem ser adicionadas livremente, aparecem marcadas com a tag
+  "Extra" e não contam para o progresso. Uma atividade extra fica visível no
+  editor só na semana em que foi criada — não migra para as semanas
+  seguintes (evita que o Roadmap acumule itens pontuais de semanas antigas);
+  ela continua existindo no banco/auditoria/snapshots antigos, só some da
+  tela ao vivo depois que a semana passa. O snapshot semanal mostra, por
+  objetivo, a semana atual do quarter, o progresso e as atividades (planejadas
+  e extras) concluídas naquela semana especificamente — esses números ficam
+  congelados no momento em que o snapshot é gerado, então relatórios antigos
+  no histórico não mudam se o roadmap for atualizado depois.
+- Cada objetivo pode ser editado (botão "✎ Editar" no card): nome, rótulo da
+  entrega, e a data de início/fim (o total de semanas e "Semana X de Y" são
+  recalculados automaticamente a partir do range). Atividades planejadas
+  também podem ser renomeadas, e qualquer atividade aceita uma anotação livre
+  opcional. O vínculo atividade→objetivo é sempre por ID interno, então
+  renomear nunca quebra o cálculo de progresso nem o histórico já gerado.
+- Campo livre de **Próximos Passos** por relatório, independente de projetos ou
+  objetivos específicos — anotação da equipe/responsável a cada semana.
+- Cada atividade aceita uma data de início e fim planejadas; ao concluí-la, o
+  sistema calcula o **% de adiantamento/atraso** (positivo = concluída antes
+  do prazo, negativo = depois), mostrado com indicação visual (verde/vermelho/
+  neutro) na própria linha da atividade. Atividades sem essas datas mostram
+  "sem dados de prazo" e ficam fora do cálculo. Cada objetivo exibe também o
+  "Adiantamento médio do quarter" — média das atividades planejadas concluídas
+  (extras não contam, mesma regra do progresso %) — ou "sem dados" enquanto
+  nenhuma tiver sido concluída com prazo preenchido. A data de conclusão real
+  é preenchida automaticamente ao marcar como concluída, mas pode ser ajustada
+  manualmente (com aviso, sem bloquear, se for definida no futuro).
+- No snapshot, o rótulo de cada entrega (ex: "ENTREGA 1") exibe também o
+  período do objetivo ao lado (ex: "ENTREGA 1 · ago/2026 a out/2026").
+- Botão "Gerar snapshot" produz a visualização formatada em um único quadro,
+  com largura fixa e altura que cresce naturalmente conforme a quantidade de
+  projetos/texto — os itens nunca são espremidos para caber num tamanho fixo.
+- Exportação como **PNG** ou **PDF** (via `html2canvas-pro` + `jsPDF`),
+  sempre na mesma proporção do conteúdo renderizado.
+- Logotipo da empresa (ORIGEM) fixado no canto inferior direito do snapshot.
+- Histórico: cada semana gerada fica salva e pode ser reaberta ou duplicada
+  como ponto de partida para a semana seguinte (os avanços antecipados viram
+  as entregas da nova semana).
+- Login com e-mail/senha (autenticado no servidor); os relatórios semanais
+  continuam separados por usuário.
+
+## Persistência de dados
+
+O relatório semanal (projetos, entregas, indicadores, texto livre) e o
+**Roadmap por Objetivos/Atividades** vivem os dois num banco Postgres real
+(ver seção seguinte). O relatório semanal é privado por usuário — cada
+usuário só vê e edita seu próprio histórico, do mesmo jeito que já era com
+`localStorage` — mas agora **sincroniza entre dispositivos/navegadores/abas
+anônimas**, em vez de ficar preso a um único navegador.
+
+Migração: relatórios salvos antes desta versão (só em `localStorage`) são
+recuperados automaticamente na primeira vez que o app carrega sem nenhum
+relatório no servidor para aquele usuário — ele lê o que ainda está no
+`localStorage` daquele navegador específico e envia para o banco (toast "N
+relatório(s) recuperado(s) do navegador para o servidor"). Isso só resgata o
+que sobrou no navegador que você tiver aberto no momento da migração; um
+relatório cujo navegador não foi mais aberto desde então não pode ser
+recuperado.
+
+## Backend: autenticação, roles e governança do roadmap
+
+O roadmap (Objetivos/Atividades) passou a ser dado autoritativo no
+**servidor** (Postgres + funções serverless em `/api`), não mais no
+navegador — é a única forma de validar permissões de verdade (nunca
+confiando só em esconder botões no front-end) e manter uma trilha de
+auditoria que o próprio usuário não possa editar.
+
+> **Limite de funções serverless (plano Hobby da Vercel):** cada arquivo em
+> `/api` vira uma Serverless Function separada, e a Vercel limita o plano
+> Hobby a 12 por deployment — passar disso falha o deploy inteiro com um
+> erro genérico "Deployment has failed", sem apontar a causa (foi o que
+> aconteceu ao adicionar `/api/reports`). Por isso as 4 rotas de auth
+> (`login`/`logout`/`me`/`change-password`) estão num único
+> `api/auth/[action].ts`, e `reports` (GET/POST/DELETE) num único
+> `api/reports.ts` — várias operações por arquivo, roteadas por método
+> HTTP (e no caso de auth, pelo segmento dinâmico da URL), em vez de um
+> arquivo por operação. Ao adicionar uma rota nova, prefira estender um
+> arquivo existente a criar um novo; se for mesmo necessário um arquivo
+> novo, rode `find api -name "*.ts" | wc -l` antes de commitar.
+
+**Implementado nesta fase:**
+- Login com e-mail/senha (hash com `bcryptjs`, nunca texto plano); sessão
+  guardada no banco (não JWT — ver o comentário em `server/auth.ts` com a
+  justificativa completa), revogável a qualquer momento.
+- Dois papéis: **Admin** (leitura e escrita) e **Visualizador** (somente
+  leitura) — toda ação de escrita é validada no servidor (`server/roadmap.ts`),
+  não apenas escondida na interface.
+- Usuário Admin padrão criado automaticamente (`npm run db:seed-admin`),
+  com senha temporária impressa uma única vez no console e troca de senha
+  sinalizada (`mustChangePassword`).
+- Trilha de auditoria (`audit_log`): toda edição de Objetivo/Atividade grava
+  campo alterado, valor anterior/novo, classificação (escopo/prazo/status) e
+  o usuário responsável (ou "sistema automatizado").
+- Gestão de mudanças: alterar uma data planejada já definida exige um motivo
+  ("Motivo da mudança"); o "Nº de replanejamentos" conta só replanejamentos
+  reais, não a definição inicial da data.
+- Versionamento do range de datas de um Objetivo — a versão anterior fica
+  preservada em `objetivo_versions`, nunca sobrescrita silenciosamente.
+- Campos RACI descritivos por atividade (Responsável/Executor), independentes
+  da role de acesso ao sistema.
+- Relatório semanal (`reports`, `server/reports.ts`): `id`/`user_id`/
+  `week_start` como colunas, o restante do relatório (projetos, indicadores,
+  textos, snapshot congelado do roadmap) em `data jsonb` — evita alterar o
+  schema a cada campo novo do relatório. Sempre filtrado por `user_id` da
+  sessão autenticada; o `userId` que o cliente manda no corpo é ignorado.
+  Sem role própria: qualquer usuário autenticado (Admin ou Visualizador) lê e
+  escreve só o seu próprio histórico, do mesmo jeito que já era com
+  `localStorage`.
+
+**Front-end integrado à API:**
+- Tela de login (e-mail/senha) e troca de senha obrigatória no primeiro
+  acesso (ou voluntária, a qualquer momento, pelo botão "Trocar senha" no
+  cabeçalho) — nenhuma senha, hash ou não, chega a trafegar de volta do
+  servidor em nenhuma resposta.
+- `RoadmapEditor`/`App.tsx` carregam e gravam Objetivos/Atividades pela API
+  (`src/lib/api.ts`), não mais do `localStorage`; erros e sucessos aparecem
+  como toasts (`ToastContext`), e cada ação de salvar mostra estado de
+  carregamento.
+- `App.tsx` carrega/grava o histórico de relatórios pela API
+  (`GET`/`POST /api/reports`, `DELETE /api/reports?id=...` — os três
+  métodos compartilham um único arquivo de rota, ver nota sobre o limite de
+  funções serverless acima) em vez do `localStorage` — autosave (debounce
+  de 400ms), "+ Nova semana", "Gerar snapshot", "Duplicar p/ próx. semana"
+  e "Excluir" persistem no servidor. `src/lib/storage.ts` (`localStorage`)
+  só é lido uma vez, na migração automática descrita acima.
+- Se `GET /api/reports` falhar (ex: a tabela `reports` ainda não existe
+  porque a migration não rodou naquele ambiente), o Editor mostra um aviso
+  de erro com botão "Tentar novamente" em vez de uma tela em branco — o
+  card de histórico também troca "Nenhum relatório salvo ainda" por "Não
+  foi possível carregar." nesse caso, para não parecer que o histórico
+  simplesmente sumiu.
+- Para o papel **Visualizador**, todos os controles de edição/exclusão do
+  roadmap são ocultados na interface (além do bloqueio no servidor) — a tela
+  mostra os mesmos dados em modo somente-leitura.
+- Campos RACI (Responsável/Executor) e o motivo de replanejamento aparecem
+  no modo de edição do Objetivo/Atividade, com a mesma validação do servidor
+  replicada no cliente para feedback imediato antes do round-trip de rede.
+- Uma Atividade pode ser reatribuída a outro Objetivo: no modo de edição do
+  Objetivo, o seletor **"Entrega"** em cada atividade lista os 4 objetivos —
+  ao trocar e salvar, a atividade passa a aparecer no card do novo objetivo
+  (`PATCH /api/atividades/:id` com `objetivoId`, restrito a Admin, auditado
+  como qualquer outro campo, registrando o Objetivo antigo e o novo em
+  "Histórico de Alterações"). Usado para reorganizar itens entre
+  Governança/Operação sem editar o banco diretamente.
+- Painel **"Histórico de Alterações"** (botão "🕘 Histórico" em cada Objetivo
+  e em cada Atividade) — mostra a trilha de auditoria completa daquele item
+  (campo, valor anterior/novo, classificação, motivo quando houver, usuário e
+  data), visível para Admin e Visualizador, já que é um artefato de
+  governança e não uma superfície de edição. Fecha com Esc ou clicando fora.
+- Bloco **"Indicadores de Governança"** no editor do relatório: % de
+  atividades planejadas concluídas no prazo/adiantadas/atrasadas, contagem
+  de atividades extras e o adiantamento médio geral — reaproveita os mesmos
+  cálculos já usados por objetivo. (O "Nº de replanejamentos" continua
+  disponível por Objetivo/Atividade no painel "Histórico de Alterações",
+  só não aparece mais agregado neste bloco.)
+- Modal de **confirmação** antes de excluir uma atividade extra (ação
+  destrutiva), com Esc/clique-fora para cancelar.
+- Botão flutuante **"Voltar ao topo"** (`BackToTopButton`), canto inferior
+  direito — só aparece depois de rolar mais de 300px, some de novo perto do
+  topo, scroll suave até `y=0`. Global (funciona em qualquer aba), oculto na
+  exportação/impressão (`no-print`).
+- Aba própria **"Roadmap Timeline"** (ao lado de Editor/Snapshot): um Gantt
+  gerado ao vivo a partir dos períodos dos Objetivos e das datas planejadas
+  das Atividades — serve de referência do roadmap proposto (equivalente ao
+  Gantt gerado no início do projeto), mas sempre em sincronia com o dado
+  real, ao contrário de uma imagem estática. Só entram no gráfico atividades
+  com início e fim planejados definidos (sem inventar datas para o que
+  ainda não foi planejado); respeita o mesmo week-scoping das atividades
+  extras — atividades extras entram no gráfico normalmente desde que
+  tenham um "Prazo" definido no Editor (não há distinção entre planejadas e
+  extras nesse filtro), e ganham uma tag roxa **"Extra"** ao lado do nome
+  para diferenciá-las das planejadas. As atividades são agrupadas por macro
+  objetivo (Diagnóstico,
+  Governança, Operação, Estratégia Futura), cada grupo com uma linha de
+  cabeçalho colorida (mesma cor das barras do Gantt) mostrando o nome do
+  objetivo ao qual aquelas atividades pertencem. Botão "⤢ Tela cheia" no
+  canto do bloco expande o gráfico via Fullscreen API do navegador (sem
+  bordas de card, ocupando a tela toda) — útil quando o roadmap tem muitas
+  atividades/meses e fica apertado no layout normal; "⤡ Sair da tela cheia"
+  ou Esc voltam ao normal. Clicar numa barra (ou no nome da atividade)
+  abre um painel (`AtividadeDetailModal`) com status, prazo planejado,
+  RACI e anotação; o botão **"Editar no Editor"** troca para a aba Editor,
+  rola até o card do Objetivo correspondente, já abre em modo de edição e
+  destaca brevemente a linha daquela atividade (`focusAtividade` em
+  `App.tsx`, propagado por `ReportEditor`/`RoadmapEditor`) — não é uma
+  segunda cópia editável, é o mesmo formulário do Editor.
+- Hierarquia visual entre concluídas e não concluídas, tanto no Timeline
+  quanto no Editor: atividades concluídas ganham um ✓ verde e texto em
+  negrito. Transições usam `transition-colors duration-200` para não
+  trocar abruptamente ao mudar o status. Sem dark mode: o app não tem
+  suporte a tema escuro em nenhuma tela ainda, então esse ponto não se
+  aplica por ora.
+- **Fase 1 do redesign da Timeline** — paleta de status com contraste
+  acessível (WCAG AA) e linha do "hoje", substituindo o esquema anterior
+  (cor do objetivo + "tint" para não concluída) por um esquema baseado em
+  **status**, já que a cor do objetivo continua identificável pelo
+  cabeçalho colorido de cada grupo:
+  - `TIMELINE_STATUS_META` (`src/types.ts`) define 4 estados visuais —
+    🟢 **Concluído** (`#15803d` sólido, texto branco), 🔵 **Em andamento**
+    (`#1d4ed8` sólido + uma textura sutil de hachura diagonal via
+    `repeating-linear-gradient`, texto branco), ⚪ **Não iniciado**
+    (contorno cinza-claro `#94a3b8` sobre fundo branco, texto
+    `#334155`) e 🔴 **Atrasado** (`#b91c1c` sólido, texto branco). Cada
+    par foi checado à mão (luminância relativa/fórmula do WCAG, mesmo
+    método já usado nos tokens `OBJETIVO_COLOR`) para garantir ≥4.5:1 —
+    inclusive a variante com hachura, testada no tom mais claro que a
+    listra branca semitransparente produz, não só na cor base sólida.
+  - "Atrasado" não existe como valor nativo de `ActivityStatus` (que só
+    tem `planned`/`in_progress`/`done`) — é **derivado** em
+    `timelineVisualStatus()` (`src/lib/roadmap.ts`): não concluída E
+    `plannedEnd` no passado. Reaproveitado pelo `RoadmapTimeline`, pelo
+    `HoverPreviewCard` e pelo `AtividadeDetailModal`, para o status
+    mostrado ser sempre consistente entre a barra, o preview de hover e o
+    modal de detalhes.
+  - Uma bolinha colorida ao lado do nome da atividade (mesma cor do
+    status) reforça a leitura mesmo antes de olhar a barra; ⚠ aparece
+    junto ao nome/barra quando atrasada.
+  - Linha vertical tracejada vermelha marcando a data de **hoje** sobre o
+    grid do Gantt, atravessando todas as linhas de atividades. Como as
+    colunas de mês usam `minmax(56px, 1fr)` (largura variável, não fixa),
+    a posição em pixels é **medida do DOM já renderizado** (mesma ideia
+    de duas passadas do `HoverPreviewCard`: mede a coluna do mês
+    correspondente via `getBoundingClientRect`, soma a fração do dia
+    dentro do mês) em vez de calculada a partir de uma largura suposta —
+    um `ResizeObserver` no grid recalcula a posição a cada mudança de
+    layout (resize da janela, entrar/sair da tela cheia). Não aparece
+    quando a data de hoje cai fora do intervalo de meses exibido.
+- **Fase 2 do redesign da Timeline** — estrutura e navegação para roadmaps
+  grandes (pré-requisito: Fase 1). Tudo em `RoadmapTimeline.tsx`:
+  - **Categorias colapsáveis**: cada cabeçalho de grupo (macro objetivo) é
+    agora um botão com ▾/▸ — clicar recolhe/expande as atividades daquele
+    grupo, mas o cabeçalho (com o contador de progresso, ver abaixo)
+    continua visível, então recolher um grupo não esconde seu resumo.
+  - **Filtros por categoria, responsável e status** — chips no topo do
+    bloco, um grupo de chips por dimensão. Dentro de uma dimensão as
+    seleções são combinadas com OU (ex.: "Concluído" + "Atrasado" mostra
+    as duas); entre dimensões é E (categoria E status E responsável).
+    Nenhum chip selecionado numa dimensão = sem filtro nela. O chip de
+    Status reaproveita as cores/rótulos de `TIMELINE_STATUS_META` (Fase 1);
+    o de Responsável é montado dinamicamente a partir dos nomes RACI
+    (Accountable e Responsible, os dois contam como "responsável")
+    realmente usados nas atividades elegíveis — some sozinho se nenhuma
+    atividade tiver RACI preenchido. Botão "Limpar filtros" aparece só
+    quando algum filtro está ativo. Uma combinação sem resultado mostra
+    "Nenhuma atividade corresponde aos filtros selecionados" (distinto da
+    mensagem "nenhuma atividade com prazo definido ainda", que só aparece
+    quando não há dado nenhum, filtro nenhum aplicado).
+  - **Contador de progresso por categoria**: cada cabeçalho de grupo mostra
+    "X/Y concluídas — Z%" (ex.: "Diagnóstico Revisado: 1/6 concluídas —
+    17%"), reaproveitando `computeObjetivoProgress` — os mesmos números já
+    usados no card do Objetivo na aba Editor, não um recorte dos filtros
+    ativos (o contador reflete o objetivo inteiro mesmo com filtro
+    aplicado, para servir de resumo estável independente do que está
+    filtrado no momento).
+  - O indicador automático de atraso (🔴, Fase 1) segue valendo aqui sem
+    mudança — é a mesma derivação (`timelineVisualStatus`), agora também
+    disponível como opção do filtro de Status.
+- **Fase 3 do redesign da Timeline** — polimento visual/interação
+  (`RoadmapTimeline.tsx`), complementar às Fases 1-2:
+  - **Truncamento explícito** na coluna Atividade e no rótulo da barra: o
+    nome vira `<span className="flex-1 min-w-0 truncate">` (antes o
+    `truncate` estava num container flex com múltiplos irmãos — sem
+    `flex-1 min-w-0` no próprio texto ele não colapsava de forma
+    confiável), garantindo "…" em nomes longos; o fallback para ver o
+    nome inteiro é o tooltip nativo (`title`) e, num hover mais demorado,
+    o preview da Fase 1.
+  - **Cursor pointer + hover visível** em barras, nomes e cabeçalhos de
+    grupo: barra ganhou `hover:brightness-110` + `hover:ring-2
+    ring-black/10`, cabeçalho de grupo ganhou `hover:brightness-95`, e
+    `cursor-pointer` explícito em todos (bar, nome, cabeçalho, chips de
+    filtro) em vez de depender do estilo padrão do navegador para
+    `<button>`.
+  - **Preenchimento parcial nas barras** — uma tira fina (3px) no rodapé
+    de cada barra mostra o quanto do PRAZO PLANEJADO já decorreu
+    (`computeBarFillPercent` em `lib/roadmap.ts`): não existe um campo de
+    "% concluído" por atividade no modelo de dados (status é só
+    planejada/em andamento/concluída), então esse é o mesmo proxy que
+    ferramentas de Gantt clássicas mostram na ausência desse campo —
+    concluída sempre 100%, sem prazo definido sempre 0%. Fica no rodapé,
+    fora da linha do texto, para nunca reduzir o contraste do rótulo (o
+    mesmo cuidado de WCAG das Fases 1-2, só que aqui resolvido por
+    posição em vez de por escolha de cor).
+  - **Zebra striping** sutil nas linhas (`bg-slate-50`/`bg-white`
+    alternando), calculado por um contador de ordem de renderização (não
+    por índice do array) para continuar alternando corretamente mesmo com
+    grupos recolhidos ou filtrados.
+  - **Coluna "Atividade" fixa** (`position: sticky; left: 0`) durante o
+    scroll horizontal do Gantt, com uma sombra de separação sutil na borda
+    direita (`shadow-[3px_0_6px_-2px_...]`) — antes essa coluna rolava
+    junto com os meses; testado rolando programaticamente e conferindo
+    `getComputedStyle` (`position: sticky` + `left` inalterado) e a
+    própria sombra aplicada.
+  - **Espaçamento vertical maior** entre linhas (`py-1.5` → `py-2.5` na
+    célula do nome — as demais células da mesma linha esticam junto por
+    causa do `align-items: stretch` padrão do Grid), passando de ~24px
+    para ~37px de altura por linha — mais fácil de tocar com precisão em
+    touch, sem inchar demais uma visão que já é densa por natureza.
+- **Fase 4 do redesign da Timeline** — evolução funcional (itens 1 e 3 do
+  escopo; item 2, linhas de dependência entre atividades, foi adiado a
+  pedido do usuário: exigiria um campo novo no modelo de dados + migração
+  + endpoint + UI, o maior risco/esforço da fase):
+  - **Zoom temporal em 4 níveis** (Dia / Semana / Mês / Trimestre), toggle
+    no topo da Timeline ao lado do botão de tela cheia. Reescreve o antigo
+    modelo "uma coluna por mês" (`monthsBetween`/`monthKey`/
+    `monthKeyLabel`/`monthColumnRange`, removidos) para um modelo genérico
+    de "períodos" (`src/lib/timelinePeriods.ts` — `buildPeriods`,
+    `periodColumnRange`, `todayPeriodPosition`): cada nível gera sua
+    própria lista de intervalos `[start, end]` (dia = 1 dia, semana =
+    segunda a domingo, mês = como antes, trimestre = Jan-Mar/Abr-Jun/
+    Jul-Set/Out-Dez), e o resto do componente (posicionamento das barras,
+    linha do "hoje") não precisa saber qual nível está ativo — só recebe a
+    lista de períodos. Cada coluna tem uma largura mínima diferente por
+    nível (Dia menor, Trimestre maior) para manter a densidade
+    proporcional. Em roadmaps de vários trimestres, Dia/Semana geram uma
+    grade bem larga (centenas de colunas) — rolável horizontalmente como
+    o resto do grid, sem paginação/viewport dedicado (não pedido no
+    escopo desta fase).
+  - **Prazo (Início/Fim) já na criação de uma atividade extra** no Editor
+    — antes a atividade extra nascia sem prazo e só aparecia na Roadmap
+    Timeline depois de uma edição separada; agora o formulário "+
+    Adicionar atividade extra" tem 2 campos de data opcionais que, se
+    preenchidos, já ficam salvos assim que a atividade é criada (cria via
+    `onAddExtra`, depois aplica o prazo via `onUpdateAtividade` no mesmo
+    fluxo) — os dois campos são opcionais mas precisam vir juntos (validado
+    antes de enviar, mesmo padrão de validação já usado na edição de
+    prazos existente).
+- Preview em hover (`HoverPreviewCard`) ao passar o mouse sobre uma
+  atividade na Timeline (nome ou barra): aparece depois de 250ms parado
+  (evita disparo acidental ao passar o mouse rápido), some depois de
+  150ms sem estar sobre o item nem sobre o próprio card — mover o mouse
+  de um para o outro conta como "ainda em cima", não pisca. Mostra nome
+  completo, objetivo, status (já com a paleta/rótulo de 4 estados acima,
+  incluindo "Atrasado"), prazo, RACI, anotação e adiantamento (se
+  concluída); botão **"Ver detalhes →"** abre o mesmo
+  `AtividadeDetailModal` do clique direto. Posicionamento em duas
+  passadas: renderiza invisível, mede a altura real do card (varia com
+  RACI/nota), só então decide se fica abaixo ou vira para cima do item,
+  e limita para nunca vazar da tela — testado forçando uma viewport
+  baixa para confirmar a virada. Em telas touch (`matchMedia('(hover:
+  none)')`, mais confiável que checar `ontouchstart`), hover não existe:
+  o primeiro toque mostra o preview, o segundo toque no mesmo item abre
+  o modal completo, e tocar fora fecha — comportamento verificado com
+  Playwright emulando um contexto touch. Fade + leve scale na entrada/
+  saída (`transition-all duration-150`).
+- Paleta de cores/tons (`Tone`, `TONE_META`, `ROLE_META` em `src/types.ts`,
+  ao lado de `STATUS_META`/`ACTIVITY_STATUS_META` já existentes) como
+  constantes únicas reutilizadas por `RoadmapEditor`, `GovernanceIndicators`
+  e o cabeçalho, em vez de cada componente decidir sua própria cor.
+- Passe de acessibilidade nos formulários do roadmap/relatório: `aria-label`
+  em todo select/input sem `<label>` visível (status, datas planejadas,
+  campos RACI, nome de projeto/atividade), `aria-pressed` nos botões de
+  status tipo semáforo, e navegação por teclado (Tab/Enter/Esc) já cobre os
+  modais e o formulário de nova atividade extra.
+- Empty states revisados para serem orientativos (ex: "nenhuma atividade
+  cadastrada — adicione uma atividade extra abaixo para começar").
+- **Accordion + modo de edição na lista de atividades do Editor**
+  (`RoadmapEditor.tsx`) — cada atividade era sempre exibida com todos os
+  campos abertos; agora é um card colapsado por padrão:
+  - **Card colapsado**: nome, resumo do prazo ("dd/mm até dd/mm" ou "Prazo
+    não definido"), responsável (se preenchido), e um badge de status
+    colorido — mesma derivação de 4 estados (`timelineVisualStatus`) e
+    mesmas cores (`TIMELINE_STATUS_META`) já usadas na Roadmap Timeline
+    (Fase 1), só que com o vocabulário que este ecrã já usava
+    (Planejada/Em andamento/Concluída/Atrasada em vez de Não
+    iniciado/Atrasado). Uma bolinha âmbar aparece, mesmo colapsado, quando
+    falta prazo OU responsável — sinaliza pendência sem precisar abrir.
+  - **Clique expande** (chevron ▸/▾) — só um item por vez fica aberto
+    (accordion); abrir outro fecha o anterior. Animado via a técnica CSS
+    `grid-template-rows: 0fr → 1fr` (com `overflow:hidden` no wrapper),
+    não uma altura medida por JS — é a forma padrão de animar suavemente
+    até "auto" sem gambiarra de `scrollHeight`.
+  - **Modo de edição é um eixo independente do accordion**: um botão
+    "Editar"/"Concluir edição" ao lado do contador de itens ("N
+    atividades") alterna, para a lista inteira, se o item ABERTO no
+    momento mostra os campos como texto formatado (com placeholders tipo
+    "Não atribuído"/"Não definido"/"Nenhuma") ou como inputs editáveis —
+    colapsar/expandir e ligar/desligar edição são independentes. Um
+    detalhe de implementação: como o colapso é só CSS (o conteúdo
+    continua no DOM, só com altura 0), os inputs editáveis só são
+    montados para o item de fato aberto (`editMode && expanded`) — do
+    contrário todo item colapsado montaria seu próprio `<select>`/inputs
+    escondidos mas ainda focáveis por Tab, um bug real pego via Playwright
+    (contagem de `<select>` no DOM) antes do commit.
+  - Reaproveita a mesma mecânica de rascunho+validação que já existia
+    (motivo obrigatório ao replanejar uma data já definida — Bloco 1.2 —,
+    nome não pode ficar vazio, início < fim), só que agora dedicada à
+    lista de atividades; o botão "✎ Editar entrega" do cabeçalho do card
+    (nome/rótulo/período do Objetivo) continua separado, com seu próprio
+    Salvar/Cancelar.
+  - Navegar da Timeline até uma atividade específica (`focusAtividade`)
+    agora expande e já entra em modo de edição só naquele item, em vez de
+    também abrir o card inteiro do Objetivo para edição como efeito
+    colateral.
+  - Barra de progresso do cabeçalho ganhou cor (verde,
+    `STATUS_META.on_track`), em vez de `slate-900` — testada uma variação
+    por faixa de avanço (vermelho/âmbar/verde conforme o %), mas descartada
+    a pedido do usuário em favor de uma cor fixa.
+- **Reorganização de UI/UX da tela do Editor** (layout, sidebar, e mais um
+  nível de colapso), a partir de um mockup de referência fornecido pelo
+  usuário:
+  - **Bug de sobreposição corrigido** (`RoadmapEditor.tsx`,
+    `AtividadeRow`): a linha resumida de uma atividade (chevron, ponto de
+    pendência, nome, tag Extra, prazo, responsável, badge de
+    adiantamento, badge de status) agora usa `flex flex-wrap` com `gap`
+    em vez de um `flex` sem quebra — em telas estreitas os itens
+    quebram para uma segunda linha em vez de se sobrepor. Removidas as
+    classes `hidden sm:inline`/`hidden md:inline` que antes escondiam
+    prazo/responsável no lugar de deixar quebrar — agora tudo continua
+    visível, só reflui.
+  - **Layout mais largo**: `max-w-[1800px]` (era 1400px) e o grid
+    principal do `App.tsx` ganhou `items-start` — necessário para a
+    sidebar não esticar até a altura da coluna principal (grid
+    `align-items` por padrão é `stretch`), condição para o
+    `xl:sticky xl:top-6` no `<aside>` realmente "grudar" em vez de já
+    nascer esticado do tamanho da página inteira.
+  - **Roadmap em grade responsiva**: `grid-cols-1 md:grid-cols-2
+    2xl:grid-cols-4` nos cards de Entrega (RoadmapEditor), em vez de
+    1-2 colunas fixas.
+  - **Histórico**: relatório mais recente ganha um badge verde "ATUAL"
+    (distinto de "ativo no momento" — o que está aberto no Editor/
+    Snapshot agora, que pode ser outro); "Excluir" saiu do card e virou
+    um menu de contexto (⋮), fechado ao clicar fora (mesmo padrão de
+    outside-click já usado no preview de hover da Timeline) — evita
+    exclusão por clique acidental.
+  - **Projetos / Iniciativas — colapso em dois níveis**: a seção
+    inteira vira um accordion (clique no cabeçalho recolhe a lista
+    toda, com contador de itens); dentro dela, cada `ProjectCard`
+    também é um item de accordion (nome + % + badge de status quando
+    colapsado; formulário completo com destaques verde/azul e alerta
+    âmbar em Riscos quando preenchido, ao expandir) — um projeto aberto
+    por vez, mesmo padrão já usado no Roadmap.
+  - **Cards de Entrega — preview + "Ver atividades"**: por padrão, cada
+    card mostra só o contador de atividades e até 2 nomes (sem
+    accordion, sem badges); "Ver atividades" revela a lista completa
+    (com o accordion por item da Fase anterior). Ao contrário do toggle
+    "Editar"/"Concluir edição" (que fica montado e só CSS-esconde),
+    este nível usa renderização condicional de verdade
+    (`{showActivities && (...)}`) em vez do truque `grid-rows 0fr/1fr`:
+    como o conteúdo por baixo pode ter uma linha em modo de edição
+    montada, deixá-lo no DOM só escondido reproduziria o mesmo bug de
+    inputs ocultos-mas-focáveis já corrigido no nível anterior — mais
+    simples não montar. Ao recolher, o item de accordion aberto também
+    é fechado (evita depender de `itemsEditMode` para essa garantia).
+  - Reduz bastante a extensão de rolagem da tela por padrão (efeito
+    colateral direto dos dois pontos acima), sem remover nenhum campo
+    ou funcionalidade — só reorganiza o que fica visível de cara.
+- **Visual dos cards de Entrega ajustado** para casar com o mockup de
+  referência (`RoadmapEditor.tsx`, `ObjetivoCard`): cartão
+  `rounded-2xl border-slate-200/70 shadow-sm` (era `rounded-xl
+  border-slate-200`, sem sombra); rótulo da entrega e o badge "Semana X
+  de Y" na mesma linha (antes o badge + Histórico/Editar entrega ficavam
+  empilhados numa coluna à direita do título); "% concluído" e
+  "ADIANTAMENTO MÉDIO" na mesma linha, com a barra de progresso abaixo
+  ocupando a largura toda (antes eram duas colunas lado a lado); 🕘
+  Histórico/✎ Editar entrega viraram uma linha própria com separador
+  (`border-t`) logo abaixo da barra; "Ver atividades"/"Recolher" ganhou
+  cor índigo (antes cinza) e o mesmo separador. A cor da barra de
+  progresso continua fixa em verde (`STATUS_META.on_track`) — o mockup
+  de referência mostrava uma variação por %, mas isso já tinha sido
+  descartado a pedido do usuário logo antes.
+- **Timeline: separação de meses na visão "Dia" + Projetos da Semana**
+  (`timelinePeriods.ts`, `RoadmapTimeline.tsx`), a partir de um problema de
+  legibilidade relatado pelo usuário (na visão "Dia", a virada de mês —
+  "...29, 30, 31, 1, 2..." — passa despercebida sem contar as colunas):
+  - **Divisor de mês**: uma linha vertical mais forte (`border-l-2
+    border-slate-400`) marca a fronteira entre o último dia de um mês e o
+    primeiro do seguinte, atravessando toda a altura da grade. Só aparece
+    na granularidade "Dia" — Semana/Mês/Trimestre continuam com o
+    comportamento de sempre. A posição de cada linha é medida via
+    `ResizeObserver` + `getBoundingClientRect()` da própria coluna
+    (`periodColRefs`), igual ao já feito para a linha "hoje" e o
+    `HoverPreviewCard` — não dá para assumir uma largura fixa de coluna
+    porque o grid usa `minmax(...)`.
+  - **Cabeçalho em duas linhas**: uma nova função `groupPeriodsByMonth`
+    (`timelinePeriods.ts`) agrupa dias consecutivos do mesmo mês
+    (`{key, label: "Agosto 2026", startIdx, span}`); a célula de canto
+    "Atividade" ganha `gridRow: 'span 2'` só quando há grupos de mês, e o
+    resto se resolve sozinho pelo auto-placement do CSS Grid — os rótulos
+    de mês (linha 1) e os números de dia (linha 2) preenchem as colunas
+    restantes sem precisar de índices manuais.
+  - **Projetos / Iniciativas da Semana na Timeline**: os projetos de
+    narrativa livre do Editor (`ProjectCard`, sem entrega/objetivo
+    associado) agora aparecem como um grupo adicional ("Projetos da
+    Semana"), com um filtro dedicado (chip roxo, independente de
+    Categoria/Status/Responsável — esses são específicos de Atividade, e
+    `Project` usa um enum de status diferente, `STATUS_META`, então não
+    faria sentido reaproveitar os mesmos filtros). Cada projeto vira uma
+    linha com um losango roxo + badge "MANUAL" + o badge de status já
+    existente (mesmas cores de `STATUS_META`, para consistência visual).
+    **Decisão de design**: `Project` não tem campos de início/fim
+    planejado no modelo de dados (só `Atividade` tem) — em vez de inventar
+    um intervalo ou migrar o schema, cada projeto é mostrado como um
+    marcador pontual (losango) na data da própria semana do relatório
+    (`weekStart`), a única data genuinamente associada a um Project via
+    seu Report pai.
+- **"Atividades da Semana" + Roadmap independente do relatório selecionado**
+  (Melhoria 2, follow-up ao item anterior — renomeação e um ponto
+  arquitetural importante):
+  - **Renomeação**: o grupo da Timeline passa a se chamar "Atividades da
+    Semana" (era "Projetos da Semana") — só o rótulo exibido nesse grupo
+    específico (cabeçalho, chip de filtro, tooltips) mudou; a seção do
+    Editor onde esses itens são cadastrados continua chamada "Projetos /
+    Iniciativas da semana" (`ReportEditor.tsx`) e os campos continuam
+    "Projeto" ali — são telas diferentes, não a mesma nomenclatura.
+  - **Prazo início/fim opcional em `Project`**: dois campos ISO novos
+    (`plannedStart`/`plannedEnd`, ambos opcionais) editáveis no
+    `ProjectCard` expandido. Quando preenchidos, o item ganha uma barra de
+    verdade no Timeline (mesma lógica de posicionamento de
+    `periodColumnRange` já usada para Atividades, com o preenchimento
+    usando o próprio `percent` do projeto — que já existe e é mais direto
+    que o proxy de "tempo decorrido" usado para Atividades); sem prazo,
+    mantém o marcador pontual (losango) já existente. Como `projects` vive
+    dentro do `data jsonb` de cada relatório (sem schema SQL próprio), os
+    dois campos não exigem migration — só o tipo TS e a API já aceitam
+    qualquer propriedade adicional no objeto.
+  - **Ponto arquitetural — Roadmap como entidade independente do relatório
+    selecionado**: antes, a Timeline recebia `currentWeekStart` e
+    `projects` diretamente do relatório aberto no Editor/Snapshot
+    (`draft`) — trocar de relatório no Histórico ("Visualizar") mudava o
+    que aparecia no Roadmap (atividades extras somem/aparecem, marcador
+    das Atividades da Semana pula de semana). Corrigido em `App.tsx`:
+    a Timeline agora recebe `currentWeekStart={currentWeekStartISO()}`
+    (a segunda-feira da semana real de hoje, sempre, não a do relatório
+    aberto) e nunca lê `draft` para as Atividades da Semana. A linha "hoje"
+    já usava `todayISO()` internamente e não precisou mudar; o que dependia
+    do relatório selecionado era só o filtro de visibilidade de extras e a
+    origem dos projetos manuais.
+  - **Correção — acumular TODOS os relatórios, não só o mais recente**: a
+    primeira versão deste item usava só `reports[0]` (o relatório "ATUAL")
+    como fonte das Atividades da Semana, o que reproduzia o mesmo problema
+    de outra forma — semanas anteriores desapareciam do Roadmap assim que
+    uma semana nova era criada. Corrigido para acumular de verdade: `App.tsx`
+    agora constrói `manualItems` como um `flatMap` de `reports` inteiro,
+    cada `Project` pareado com o `weekStart` do SEU PRÓPRIO relatório (não
+    mais um único `projectsWeekStart` global) — o mesmo princípio já
+    aplicado às atividades extras concluídas, agora consistente também
+    para os itens manuais.
+  - **Atividades extras concluídas viram legado permanente**: a regra
+    antiga (`isVisibleThisWeek`, ainda usada como estava no Editor ao vivo)
+    escondia qualquer atividade extra cuja semana de criação não fosse a
+    semana atual — correto para o Editor (não deixar um TODO de semana
+    passada solto), mas errado para o Roadmap, que deve acumular todo o
+    progresso já entregue. Nova função dedicada só para a Timeline,
+    `isVisibleInTimeline` (`lib/roadmap.ts`): igual à anterior, exceto que
+    uma extra com `status: 'done'` **sempre** aparece, não importa a
+    semana em que foi criada — vira parte do histórico acumulado, exatamente
+    como as atividades planejadas concluídas já se comportavam.
+  - Testado via Playwright: abrir um relatório de semana anterior no
+    Histórico não altera as linhas exibidas no Roadmap nem a posição da
+    linha "hoje"; uma atividade extra concluída há 3 semanas continua
+    visível; o projeto do relatório antigo (não o mais recente) não
+    aparece; barra com prazo atravessando a virada de mês (25/08 a 05/09)
+    renderiza corretamente ao lado do divisor de mês (Melhoria 1); toggle
+    mostrar/ocultar "Atividades da Semana" funciona nos dois sentidos.
+- **Correção de layout — Timeline não cabia na tela sem "tela cheia"**: como
+  "Atividades da Semana" agora acumula todos os relatórios (item anterior),
+  o número de linhas cresce a cada semana nova — o grid, sem altura própria,
+  simplesmente empurrava a página inteira para baixo, e em "Dia" (centenas
+  de colunas estreitas) empurrava a página para os lados também, obrigando
+  a usar "Tela cheia" (que só funcionava por acidente: a Fullscreen API do
+  navegador dá ao elemento o tamanho real da tela, mascarando o problema).
+  Duas correções em `RoadmapTimeline.tsx`:
+  - **Cabeçalho separado do corpo rolável**: em vez de cabeçalho (canto
+    "Atividade" + linha de meses + régua de tempo) e corpo (grupos/linhas)
+    no MESMO grid, agora são dois grids irmãos com o mesmo
+    `gridTemplateColumns` — o cabeçalho fica fixo, só o corpo tem
+    `overflow-y-auto` com altura limitada. Preferido a `position: sticky`
+    porque a visão "Dia" tem cabeçalho de DUAS linhas (mês + dia) — dois
+    `sticky top` diferentes exigiriam medir a altura da 1ª linha em pixels;
+    com dois grids, o problema não existe. A linha "hoje" e o divisor de
+    mês passam a ficar só na altura do corpo (não atravessam mais mais o
+    cabeçalho) — role visual menor, mas sem trade-off real, já que o
+    cabeçalho fixo não precisa da linha para ainda mostrar a coluna certa.
+  - **Seção com altura máxima** (`max-h-[75vh]` fora de tela cheia, `h-full`
+    dentro): o `<section>` agora é `flex flex-col`, cabeçalho/filtros com
+    `shrink-0`, e só a área do grid usa o espaço restante (`flex-1
+    min-h-0`) — crescer o número de linhas não cresce mais o componente,
+    só aumenta o quanto o corpo rola internamente.
+  - **Causa raiz real do overflow horizontal**: não estava no
+    `RoadmapTimeline` em si — a `<div>` que envolve o conteúdo das abas em
+    `App.tsx` é a 1ª coluna de um CSS Grid (`grid-cols-[1fr_340px]`) sem
+    `min-w-0`; por padrão, uma célula de grid não encolhe abaixo do
+    tamanho mínimo intrínseco do que há dentro dela, então a grade de
+    milhares de pixels da visão "Dia" "vazava" e alargava a página inteira
+    mesmo com `overflow-x-auto` no componente. Corrigido com `min-w-0`
+    nessa `<div>` (`App.tsx`) — um problema clássico de Grid/Flexbox, não
+    específico deste componente.
+  - "Tela cheia" continua existindo como opção de conforto, não mais como
+    correção de um bug de layout.
+  - Testado via Playwright nas 4 granularidades (Dia/Semana/Mês/Trimestre),
+    com dados simulando várias semanas acumuladas de "Atividades da
+    Semana": nenhuma causa overflow de página (nem vertical nem
+    horizontal), o corpo rola internamente com o cabeçalho parado no
+    lugar, e a página em si não rola por causa do componente.
+- **Redesign visual do Roadmap Timeline a partir de um mockup de referência**
+  (paleta, cabeçalho em 3 camadas, indicadores, painel de detalhes com
+  abas) — mantendo tudo que já existia (zoom Dia/Semana/Mês/Trimestre,
+  Atividades da Semana, filtros, colapso por objetivo), por decisão
+  explícita do usuário diante do trade-off entre seguir o mockup à risca
+  (grade fixa por mês, sem essas funcionalidades) ou só restilizar em cima
+  do que já estava construído:
+  - **Paleta exata do mockup**: `OBJETIVO_COLOR.diagnostico.bar` ajustado de
+    `#16a34a` para `#15803d` (as outras 3 cores já batiam). Cabeçalho ganha
+    os tons de navy do mockup (`#1E2A47`/`#2A3A5C`/`#3B4C78` para o mês
+    atual em destaque), sem reaproveitar o resto da paleta cinza/slate que
+    o app usa em outros lugares — deliberadamente um esquema próprio da
+    Timeline, como no mockup.
+  - **Cabeçalho em 3 camadas** (`RoadmapTimeline.tsx`): duas novas linhas —
+    "Objetivos" (faixa colorida por objetivo) e "Período" (rótulo da
+    entrega + intervalo por extenso, via `formatObjetivoPeriodLabel` já
+    existente) — acima da régua de tempo já existente, calculadas com
+    `periodColumnRange` (o mesmo helper já usado para posicionar barras),
+    então funcionam em QUALQUER zoom, não só no "Mês" do mockup. Os
+    segmentos de cada linha são calculados uma vez (`objetivoBandSegments`,
+    com um `cursor` evitando sobreposição entre objetivos consecutivos) e
+    reaproveitados pelas duas linhas.
+  - **Badge "Hoje"**: pill vermelho sobre a linha tracejada, com
+    `position: sticky` para acompanhar o scroll vertical do corpo (o
+    cabeçalho, desde a correção de layout anterior, não faz mais parte da
+    área que rola verticalmente).
+  - **Cartões de indicadores** (`TimelineStatCards.tsx`): anel de progresso
+    (SVG) + cartões de Concluídas/Em andamento/Atrasadas/Não
+    iniciadas/Total, calculados sobre o mesmo universo de atividades já
+    elegíveis para aparecer no grid (`eligibleRows`) — não um novo filtro.
+  - **Painel de detalhes lateral** (`ActivityDetailPanel.tsx`, substitui
+    `AtividadeDetailModal.tsx`, removido): sticky ao lado do grid em telas
+    xl+, slide-over com fundo escurecido abaixo disso — mesma mecânica do
+    mockup. 3 abas: **Detalhes** (Status editável, Responsável — reaproveita
+    `raciAccountableName`, já rotulado "Responsável" no app —, Descrição —
+    reaproveita o campo `note` já existente, só relabelado aqui —,
+    Progresso somente leitura); **Subtarefas**, ver abaixo; **Histórico**,
+    que reaproveita de verdade o `AuditHistoryModal`/`audit_log` já
+    existentes (exportados `FIELD_LABEL`/`CHANGE_TYPE_LABEL`/`formatValue`/
+    `formatDateTime` de lá para não duplicar) — não é uma lista fictícia
+    como no mockup. Prazo e Objetivo continuam só leitura aqui (dizem
+    respeito ao fluxo de replanejamento com motivo obrigatório, Bloco 1.2)
+    — "Editar no Editor" leva até lá.
+  - **Campos novos no modelo de dados** (migration `005_atividade_subtasks.sql`,
+    aditiva): `subtasks` (checklist — nome + % por item) e `colorOverride`
+    (cor de override da barra). Por decisão explícita do usuário, os campos
+    foram adicionados de verdade (não só a UI preparada) — `subtasks` tem
+    edição completa (adicionar/renomear/remover/arrastar o range de %) na
+    aba Subtarefas, e quando a atividade tem 1+ subtarefas, o progresso
+    exibido na barra e no painel passa a ser a MÉDIA real das subtarefas
+    em vez do proxy de tempo decorrido (`computeBarFillPercent`, que já
+    existia) — sem subtarefas, nada muda no comportamento anterior.
+    `colorOverride` ficou só no modelo/tipo (sem UI para defini-lo ainda) —
+    nenhuma atividade tinha um caso de uso real para "barra que cruza
+    objetivos" nos dados de teste, então não inventei uma interface para
+    isso sem um caso real para validar contra.
+  - **Sem inventar dado**: "Responsável" reaproveita `raciAccountableName`
+    (já existia, já rotulado assim no app) em vez de criar um campo
+    redundante; "Descrição" reaproveita `note` pelo mesmo motivo. O
+    "Status" ofertado no seletor são só os 3 valores reais do modelo
+    (Planejada/Em andamento/Concluída) — "Atrasado" continua sendo um
+    estado DERIVADO (não fica ofertado como opção "salvável", já que não é
+    um valor que a atividade realmente guarda).
+  - **"+ Nova Atividade"**: reaproveita o mesmo fluxo de criação de extra já
+    usado no Editor (`createExtraAtividadeApi`/`createExtraAtividade`),
+    estendido com `plannedStart`/`plannedEnd` opcionais (antes, uma extra
+    sempre nascia sem prazo) — criada already posicionada no Timeline.
+  - **Legenda combinada**: uma única faixa com os pontos de Objetivo +
+    ícones/cores de Status da Timeline, no rodapé do card, substituindo os
+    dois blocos que ficavam divididos nos filtros.
+  - **Correção de overflow mobile** descoberta durante o teste em ~390px:
+    o container do toolbar tinha `shrink-0` (não encolhe) E `flex-wrap`
+    (deveria quebrar linha) ao mesmo tempo — como só um dos dois pode
+    "vencer", `shrink-0` sempre ganhava e o grupo de botões nunca quebrava
+    linha de verdade, vazando a largura da página. Removido `shrink-0`
+    dali. Um segundo problema (o card de indicadores, ao quebrar em 3
+    linhas num celular, espremia a área do grid a quase zero de altura,
+    fazendo a legenda visualmente sobrepor as barras e bloquear cliques)
+    foi corrigido dando um `min-h` mínimo + `overflow-hidden` de segurança
+    para essa área, e deixando os cartões de indicador rolarem na
+    horizontal como uma faixa compacta abaixo de `sm`, em vez de quebrar
+    em várias linhas altas.
+  - Testado via Playwright em 1920×1080, 1366×768 e ~390px: sem overflow de
+    página em nenhuma resolução; criar atividade nova, editar
+    status/responsável/descrição, adicionar e salvar subtarefa (com o %
+    persistindo e o progresso da barra atualizando de verdade), e ver o
+    registro real no Histórico — tudo de ponta a ponta contra o banco.
+- **Migration em produção sem acesso ao `DATABASE_URL`**: a Vercel marca
+  `DATABASE_URL` como "sensitive" e não deixa mais ver/copiar o valor pela
+  dashboard, então não dava para rodar `npm run db:migrate` localmente
+  apontando para produção depois da migration
+  `005_atividade_subtasks.sql`. Resolvido criando uma rota temporária
+  admin-only (`/api/admin-migrate`, já removida) que rodava a migration
+  usando o `DATABASE_URL` que a própria Vercel já tinha configurado — a
+  lógica de fato ficou em `server/migrations.ts` (`applyPendingMigrations`,
+  reaproveitada pelo script `server/migrate.ts` de sempre). No caminho,
+  apareceu um segundo bug real: a produção já tinha o schema das migrations
+  001-003 aplicado de antes da tabela `schema_migrations` existir, então
+  essas linhas nunca foram registradas — rodar a migration 003 de novo
+  (sem `IF NOT EXISTS`) falhava com "column already exists" e travava ali,
+  nunca chegando na 005. `applyPendingMigrations` agora reconhece os
+  códigos Postgres de "já existe" (`42701`/`42P07`/`42710`) e, nesse caso,
+  só registra a migration como aplicada em vez de propagar o erro —
+  confirmado funcionando em produção.
+- **Backlog** — uma nova entidade global e persistente (`backlog_items`,
+  migration `006_backlog.sql`), independente de qualquer relatório semanal,
+  seguindo o mesmo princípio já usado para Objetivo/Atividade (e explicitamente
+  o oposto do que Project fazia antes de virar "Atividades da Semana"): um
+  item criado/editado/removido no Editor aparece automaticamente no Snapshot
+  e na Timeline sem precisar recadastrar em nenhum lugar, porque as três telas
+  leem o mesmo estado (`backlogItems` em `App.tsx`), buscado uma vez de
+  `/api/backlog`.
+  - **Campos**: só `name` é obrigatório; `objetivoId` (categoria/objetivo ou
+    "Sem categoria"), `priority` (Alta/Média/Baixa), `status` (Não
+    iniciado/Em andamento/Concluído) e `estimatedDueDate` (opcional) têm
+    default sensato. Sem campo de auditoria/histórico — decisão deliberada de
+    escopo, diferente de Objetivo/Atividade, já que o backlog é
+    propositalmente menos formal/governado.
+  - **Editor**: nova seção "Backlog" (`BacklogItemRow.tsx`), mesmo padrão de
+    accordion das demais seções — "+ Adicionar item ao backlog" já cria e
+    expande o item na hora.
+  - **Snapshot** (`SnapshotView.tsx`, seção "Backlog Pendente"): mostrado
+    **ao vivo** (não congelado como o `roadmapSnapshot`), porque o objetivo
+    explícito era ter uma única fonte de verdade sempre atual — contadores
+    por status + a lista de itens com categoria/prioridade/prazo.
+  - **Roadmap Timeline** (`RoadmapTimeline.tsx`): nova faixa "Backlog",
+    visualmente neutra (cinza, badge "BACKLOG") para não ser confundida com
+    as faixas coloridas dos Objetivos nem com o roxo de "Atividades da
+    Semana". Um item de backlog só tem UMA data própria (`estimatedDueDate`,
+    nunca um intervalo), então é sempre plotado como um marcador pontual — na
+    data estimada quando existe, ou em `createdAt` quando não existe — nunca
+    como barra (evita fabricar um intervalo que o dado não tem). Toggle
+    próprio no filtro do cabeçalho, ao lado de Categoria/Status/Responsável e
+    do toggle de "Atividades da Semana" já existente.
+  - **Não incluído nesta entrega** (fora do pedido original): promoção
+    "Mover para o Roadmap" (transformar um item de backlog numa Atividade
+    formal) — mencionado como evolução futura, não implementado.
+**Ainda não feito** (próximos passos de UX, menor prioridade): revisão
+formal de contraste de cor (WCAG) e responsividade em telas mobile/tablet,
+e uma estrutura de roles mais extensível (hoje um enum fixo `admin`/`viewer`,
+funcional mas não desenhado para adicionar um 3º papel facilmente).
+
+### Configuração
+
+```bash
+cp .env.example .env.local   # edite DATABASE_URL com seu Postgres
+npm run db:migrate           # cria as tabelas (só aditivo — nunca apaga nada)
+npm run db:seed-admin        # cria o admin padrão, se ainda não existir
+npm run dev                  # a própria Vite dev server já serve /api
+```
+
+Em produção (Vercel), defina `DATABASE_URL` em Project Settings → Environment
+Variables apontando para o seu Postgres hospedado, e rode
+`npm run db:migrate` (e, na primeira vez, `npm run db:seed-admin`) uma vez
+apontando para esse mesmo banco antes/depois do primeiro deploy. As rotas em
+`/api/*.ts` são detectadas automaticamente pela Vercel como funções
+serverless — não é necessário `vercel.json`.
+
+## Rodando localmente
+
+```bash
+npm install
+npm run dev
+```
+
+Acesse `http://localhost:5173`.
+
+## Build de produção
+
+```bash
+npm run build
+npm run preview
+```
+
+## Stack
+
+- React + TypeScript + Vite
+- Tailwind CSS v4
+- html2canvas-pro + jsPDF (exportação PNG/PDF)
+- Backend: funções serverless (`/api`) + Postgres (`pg`) + `bcryptjs`, servidas
+  localmente pela própria Vite dev server via um plugin em `vite.config.ts`
