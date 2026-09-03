@@ -28,6 +28,7 @@ import ReportEditor from './components/editor/ReportEditor';
 import RoadmapTimeline, { type ManualTimelineItem } from './components/editor/RoadmapTimeline';
 import type { FocusAtividade } from './components/editor/RoadmapEditor';
 import SnapshotView from './components/snapshot/SnapshotView';
+import SnapshotSlideView from './components/snapshot/SnapshotSlideView';
 import HistoryPanel from './components/history/HistoryPanel';
 import WeeklyActivityChart from './components/history/WeeklyActivityChart';
 import BackToTopButton from './components/BackToTopButton';
@@ -55,6 +56,7 @@ export default function App() {
   const [exporting, setExporting] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const snapshotRef = useRef<HTMLDivElement>(null);
+  const slideRef = useRef<HTMLDivElement>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function loadReports(user: AuthedUser, cancelledRef?: { current: boolean }) {
@@ -267,6 +269,21 @@ export default function App() {
     }
   }
 
+  // 16:9 "highlights slide" export — a companion format for pasting into a
+  // presentation deck, condensed from the same data as the full snapshot
+  // (SnapshotSlideView), always rendered off-screen while in the Snapshot
+  // view so it's ready to capture on demand.
+  async function handleExportSlide() {
+    if (!slideRef.current || !draft) return;
+    setExporting(true);
+    try {
+      const { exportNodeAsPNG } = await import('./utils/export');
+      await exportNodeAsPNG(slideRef.current, `status-report-16x9_${draft.weekStart}.png`);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const editorDisabled = useMemo(() => view === 'snapshot', [view]);
   // Melhoria 2.2: the Roadmap accumulates "Atividades da Semana" from EVERY
   // report in the History, not just the most recent one — same principle
@@ -403,6 +420,14 @@ export default function App() {
                   </button>
                   <button
                     disabled={exporting}
+                    onClick={() => void handleExportSlide()}
+                    title="Slide condensado 16:9, pronto para colar numa apresentação"
+                    className="text-sm font-medium border border-slate-300 bg-white rounded-lg px-3 py-1.5 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Exportar 16:9
+                  </button>
+                  <button
+                    disabled={exporting}
                     onClick={() => handleExport('pdf')}
                     className="text-sm font-medium bg-slate-900 text-white rounded-lg px-3 py-1.5 hover:bg-slate-800 disabled:opacity-50"
                   >
@@ -489,6 +514,15 @@ export default function App() {
                 objetivos={objetivos}
                 backlogItems={backlogItems}
               />
+            </div>
+          )}
+
+          {/* 16:9 slide export target — kept off-screen (not display:none,
+             which html2canvas can't capture) rather than shown inline, since
+             it's a companion export format, not something to read here. */}
+          {view === 'snapshot' && draft && (
+            <div className="fixed top-0 pointer-events-none" style={{ left: -10000 }} aria-hidden="true">
+              <SnapshotSlideView ref={slideRef} report={draft} reports={reports} atividades={atividades} objetivos={objetivos} />
             </div>
           )}
         </div>

@@ -270,6 +270,52 @@ export function computeOnTimeStreak(
   return streak;
 }
 
+export interface SnapshotHeroStats {
+  weekAtividadesCount: number;
+  weekEntregasCount: number;
+  /** weekAtividadesCount + weekEntregasCount. */
+  weekCompletedCount: number;
+  totalAtividadesCount: number;
+  totalEntregasCount: number;
+  /** totalAtividadesCount + totalEntregasCount. */
+  totalCompletedCount: number;
+  onTimeStreakWeeks: number;
+  /** Average of every objetivo's progress %, rounded. */
+  roadmapOverallProgress: number;
+}
+
+/**
+ * The compliance/volume figures both Snapshot views (the full report and
+ * the 16:9 slide) lead with — computed once here so the two can never drift
+ * apart (see reportRoadmapAtividadesCount's own note: it's what keeps a
+ * total reconcilable with what's on screen elsewhere).
+ */
+export function computeSnapshotHeroStats(
+  report: Report,
+  reports: Report[],
+  atividades: Atividade[],
+  objetivos: Objetivo[],
+): SnapshotHeroStats {
+  const weekAtividadesCount = reportRoadmapAtividadesCount(report, atividades, objetivos);
+  const weekEntregasCount = report.projects.length;
+  const totalAtividadesCount = reports.reduce((sum, r) => sum + reportRoadmapAtividadesCount(r, atividades, objetivos), 0);
+  const totalEntregasCount = reports.reduce((sum, r) => sum + r.projects.length, 0);
+  const roadmapData = report.roadmapSnapshot ?? buildRoadmapSnapshot(atividades, report.weekStart, objetivos);
+  const roadmapOverallProgress = Math.round(
+    roadmapData.reduce((sum, s) => sum + s.progress, 0) / Math.max(roadmapData.length, 1),
+  );
+  return {
+    weekAtividadesCount,
+    weekEntregasCount,
+    weekCompletedCount: weekAtividadesCount + weekEntregasCount,
+    totalAtividadesCount,
+    totalEntregasCount,
+    totalCompletedCount: totalAtividadesCount + totalEntregasCount,
+    onTimeStreakWeeks: computeOnTimeStreak(atividades, reports, report.weekStart),
+    roadmapOverallProgress,
+  };
+}
+
 export interface WeeklyCompletedCount {
   weekStart: string;
   atividadesCount: number;

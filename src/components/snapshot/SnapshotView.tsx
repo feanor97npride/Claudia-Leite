@@ -2,9 +2,10 @@ import { forwardRef } from 'react';
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
 import type { Atividade, BacklogItem, Objetivo, ObjetivoProgressSnapshot, Project, Report } from '../../types';
 import { BACKLOG_PRIORITY_META, BACKLOG_STATUS_META, OBJETIVO_COLOR, STATUS_META } from '../../types';
-import { buildRoadmapSnapshot, computeOnTimeStreak, reportRoadmapAtividadesCount } from '../../lib/roadmap';
+import { buildRoadmapSnapshot, computeSnapshotHeroStats } from '../../lib/roadmap';
 import StatusBadge from './StatusBadge';
 import LogoOrigem from './LogoOrigem';
+import { NAVY_900, NAVY_800, BLUE_ACCENT, LINE, PAGE_BG, INK_600, INK_400, PURPLE, DECOR } from './palette';
 import {
   IconAlert,
   IconArrowRight,
@@ -36,25 +37,10 @@ interface Props {
 // never get squeezed down to unreadable sizes on longer reports.
 const FRAME_W = 1280;
 
-// Palette lifted from the corporate reference template.
-const NAVY_900 = '#0d1b3e';
-const NAVY_800 = '#132250';
-const BLUE_ACCENT = '#3b6fd6';
-const LINE = '#e4e8f2';
-const PAGE_BG = '#f3f5fa';
-const INK_600 = '#54607a';
-const INK_400 = '#8a93ab';
-const PURPLE = '#6d4fd6';
-
 // Section number badges (1-5) always use this single neutral color — the
 // status palette (green/amber/red) is reserved exclusively for semaphore
 // status, never for decoration.
 const SECTION_COLOR = NAVY_900;
-
-// Decorative accents for custom indicator tiles beyond the fixed three.
-// Deliberately excludes green/amber/red so it never gets confused with the
-// on-track/attention/delayed semaphore.
-const DECOR = ['#0ea5b7', '#7c3aed', '#2563eb', '#0284c7', '#6366f1'];
 
 const INDICATOR_ICONS = [IconGauge, IconTrendingUp, IconUsers, IconTarget, IconFlag];
 
@@ -395,26 +381,14 @@ const SnapshotView = forwardRef<HTMLDivElement, Props>(({ report, reports, ativi
     { nao_iniciado: 0, em_andamento: 0, concluido: 0 } as Record<string, number>,
   );
 
-  // Compliance/volume hero figures: sum BOTH atividades concluídas
-  // (governed roadmap items) AND entregas (report.projects) — neither one
-  // alone is "everything delivered" (an entrega can exist with no roadmap
-  // atividade behind it, e.g. ad-hoc work). Atividades are counted via
-  // reportRoadmapAtividadesCount — the SAME per-report figure the History
-  // panel shows — so this total is always exactly the sum of the numbers
-  // visible on screen across every report card, never a bigger number from
-  // atividades whose completion week never got a report saved for it.
-  const weekAtividadesCount = reportRoadmapAtividadesCount(report, atividades, objetivos);
-  const weekEntregasCount = report.projects.length;
-  const weekCompletedCount = weekAtividadesCount + weekEntregasCount;
-
-  const totalAtividadesCount = reports.reduce((sum, r) => sum + reportRoadmapAtividadesCount(r, atividades, objetivos), 0);
-  const totalEntregasCount = reports.reduce((sum, r) => sum + r.projects.length, 0);
-  const totalCompletedCount = totalAtividadesCount + totalEntregasCount;
-
-  const onTimeStreakWeeks = computeOnTimeStreak(atividades, reports, report.weekStart);
-
-  const roadmapOverallProgress = Math.round(
-    roadmapData.reduce((sum, s) => sum + s.progress, 0) / Math.max(roadmapData.length, 1),
+  // Compliance/volume hero figures — shared with the 16:9 slide export
+  // (SnapshotSlideView) via computeSnapshotHeroStats, so the two can never
+  // show different numbers for the same report.
+  const { weekCompletedCount, totalCompletedCount, onTimeStreakWeeks, roadmapOverallProgress } = computeSnapshotHeroStats(
+    report,
+    reports,
+    atividades,
+    objetivos,
   );
 
   return (
